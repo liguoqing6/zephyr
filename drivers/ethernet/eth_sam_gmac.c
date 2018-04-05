@@ -30,6 +30,7 @@
 #include <stdbool.h>
 #include <net/net_pkt.h>
 #include <net/net_if.h>
+#include <net/ethernet.h>
 #include <i2c.h>
 #include <soc.h>
 #include "phy_sam_gmac.h"
@@ -38,7 +39,8 @@
 /*
  * Verify Kconfig configuration
  */
-
+/* No need to verify things for unit tests */
+#if !defined(CONFIG_NET_TEST)
 #if CONFIG_NET_BUF_DATA_SIZE * CONFIG_ETH_SAM_GMAC_BUF_RX_COUNT \
 	< GMAC_FRAME_SIZE_MAX
 #error CONFIG_NET_BUF_DATA_SIZE * CONFIG_ETH_SAM_GMAC_BUF_RX_COUNT is \
@@ -63,6 +65,7 @@
 #pragma message "CONFIG_NET_BUF_DATA_SIZE should be a multiple of 64 bytes " \
 	"due to the granularity of RX DMA"
 #endif
+#endif /* !CONFIG_NET_TEST */
 
 /* RX descriptors list */
 static struct gmac_desc rx_desc_que0[MAIN_QUEUE_RX_DESC_COUNT]
@@ -836,9 +839,9 @@ static void eth0_iface_init(struct net_if *iface)
 	link_configure(cfg->regs, link_status);
 }
 
-static struct net_if_api eth0_api = {
-	.init	= eth0_iface_init,
-	.send	= eth_tx,
+static const struct ethernet_api eth0_api = {
+	.iface_api.init = eth0_iface_init,
+	.iface_api.send = eth_tx,
 };
 
 static struct device DEVICE_NAME_GET(eth0_sam_gmac);

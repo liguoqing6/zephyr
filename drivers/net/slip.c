@@ -27,6 +27,7 @@
 #include <net/net_if.h>
 #include <net/net_core.h>
 #include <console/uart_pipe.h>
+#include <net/ethernet.h>
 
 #define SLIP_END     0300
 #define SLIP_ESC     0333
@@ -211,7 +212,7 @@ static int slip_send(struct net_if *iface, struct net_pkt *pkt)
 #if SYS_LOG_LEVEL >= SYS_LOG_LEVEL_DEBUG
 		SYS_LOG_DBG("sent data %d bytes",
 			    frag->len + net_pkt_ll_reserve(pkt));
-		if (frag->len + ll_reserve) {
+		if (frag->len + net_pkt_ll_reserve(pkt)) {
 			char msg[8 + 1];
 
 			snprintf(msg, sizeof(msg), "<slip %2d", frag_count++);
@@ -410,33 +411,6 @@ static u8_t *recv_cb(u8_t *buf, size_t *off)
 	return buf;
 }
 
-static inline int _slip_mac_addr_from_str(struct slip_context *slip,
-					  const char *src)
-{
-	unsigned int len, i;
-	char *endptr;
-
-	len = strlen(src);
-	for (i = 0; i < len; i++) {
-		if (!(src[i] >= '0' && src[i] <= '9') &&
-		    !(src[i] >= 'A' && src[i] <= 'F') &&
-		    !(src[i] >= 'a' && src[i] <= 'f') &&
-		    src[i] != ':') {
-			return -EINVAL;
-		}
-	}
-
-	memset(slip->mac_addr, 0, sizeof(slip->mac_addr));
-
-	for (i = 0; i < sizeof(slip->mac_addr); i++) {
-		slip->mac_addr[i] = strtol(src, &endptr, 16);
-		src = ++endptr;
-	}
-
-	return 0;
-}
-
-
 static int slip_init(struct device *dev)
 {
 	struct slip_context *slip = dev->driver_data;
@@ -473,7 +447,8 @@ static void slip_iface_init(struct net_if *iface)
 	slip->iface = iface;
 
 	if (CONFIG_SLIP_MAC_ADDR[0] != 0) {
-		if (_slip_mac_addr_from_str(slip, CONFIG_SLIP_MAC_ADDR) < 0) {
+		if (net_bytes_from_str(slip->mac_addr, sizeof(slip->mac_addr),
+				       CONFIG_SLIP_MAC_ADDR) < 0) {
 			goto use_random_mac;
 		}
 	} else {
@@ -490,18 +465,24 @@ use_random_mac:
 			     NET_LINK_ETHERNET);
 }
 
-static struct net_if_api slip_if_api = {
-	.init = slip_iface_init,
-	.send = slip_send,
-};
-
 static struct slip_context slip_context_data;
 
 #if defined(CONFIG_SLIP_TAP) && defined(CONFIG_NET_L2_ETHERNET)
+static const struct ethernet_api slip_if_api = {
+	.iface_api.init = slip_iface_init,
+	.iface_api.send = slip_send,
+};
+
 #define _SLIP_L2_LAYER ETHERNET_L2
 #define _SLIP_L2_CTX_TYPE NET_L2_GET_CTX_TYPE(ETHERNET_L2)
 #define _SLIP_MTU 1500
 #else
+
+static const struct net_if_api slip_if_api = {
+	.init = slip_iface_init,
+	.send = slip_send,
+};
+
 #define _SLIP_L2_LAYER DUMMY_L2
 #define _SLIP_L2_CTX_TYPE NET_L2_GET_CTX_TYPE(DUMMY_L2)
 #define _SLIP_MTU 576

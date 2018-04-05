@@ -188,6 +188,18 @@ extern const struct in6_addr in6addr_loopback;
 #define NET_IPV6_NEXTHDR_FRAG        44
 #define NET_IPV6_NEXTHDR_NONE        59
 
+/** Network packet priority settings described in IEEE 802.1Q Annex I.1 */
+enum net_priority {
+	NET_PRIORITY_BK = 0, /* Background (lowest)                */
+	NET_PRIORITY_BE = 1, /* Best effort (default)              */
+	NET_PRIORITY_EE = 2, /* Excellent effort                   */
+	NET_PRIORITY_CA = 3, /* Critical applications (highest)    */
+	NET_PRIORITY_VI = 4, /* Video, < 100 ms latency and jitter */
+	NET_PRIORITY_VO = 5, /* Voice, < 10 ms latency and jitter  */
+	NET_PRIORITY_IC = 6, /* Internetwork control               */
+	NET_PRIORITY_NC = 7  /* Network control                    */
+};
+
 /** IPv6/IPv4 network connection tuple */
 struct net_tuple {
 	/** IPv6/IPv4 remote address */
@@ -349,6 +361,7 @@ static inline bool net_is_ipv6_addr_mcast(const struct in6_addr *addr)
 }
 
 struct net_if;
+struct net_if_config;
 
 extern struct net_if_addr *net_if_ipv6_addr_lookup(const struct in6_addr *addr,
 						   struct net_if **iface);
@@ -931,6 +944,39 @@ static inline bool net_tcp_seq_greater(u32_t seq1, u32_t seq2)
 {
 	return net_tcp_seq_cmp(seq1, seq2) > 0;
 }
+
+/**
+ * @brief Convert a string of hex values to array of bytes.
+ *
+ * @details The syntax of the string is "ab:02:98:fa:42:01"
+ *
+ * @param buf Pointer to memory where the bytes are written.
+ * @param buf_len Length of the memory area.
+ * @param src String of bytes.
+ *
+ * @return 0 if ok, <0 if error
+ */
+int net_bytes_from_str(u8_t *buf, int buf_len, const char *src);
+
+/**
+ * @brief Convert Tx network packet priority to traffic class so we can place
+ * the packet into correct Tx queue.
+ *
+ * @param prio Network priority
+ *
+ * @return Tx traffic class that handles that priority network traffic.
+ */
+int net_tx_priority2tc(enum net_priority prio);
+
+/**
+ * @brief Convert Rx network packet priority to traffic class so we can place
+ * the packet into correct Rx queue.
+ *
+ * @param prio Network priority
+ *
+ * @return Rx traffic class that handles that priority network traffic.
+ */
+int net_rx_priority2tc(enum net_priority prio);
 
 #ifdef __cplusplus
 }

@@ -312,7 +312,7 @@ static void eth_mcux_delayed_phy_work(struct k_work *item)
 
 static int eth_tx(struct net_if *iface, struct net_pkt *pkt)
 {
-	struct eth_context *context = iface->dev->driver_data;
+	struct eth_context *context = net_if_get_device(iface)->driver_data;
 	const struct net_buf *frag;
 	u8_t *dst;
 	status_t status;
@@ -601,9 +601,9 @@ static void eth_0_iface_init(struct net_if *iface)
 	context->iface = iface;
 }
 
-static struct net_if_api api_funcs_0 = {
-	.init	= eth_0_iface_init,
-	.send	= eth_tx,
+static const struct ethernet_api api_funcs_0 = {
+	.iface_api.init = eth_0_iface_init,
+	.iface_api.send = eth_tx,
 };
 
 static void eth_mcux_rx_isr(void *p)

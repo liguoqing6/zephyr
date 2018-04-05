@@ -100,7 +100,7 @@ static inline const char *addrstate2str(enum net_addr_state addr_state)
 static const char *iface2str(struct net_if *iface, const char **extra)
 {
 #ifdef CONFIG_NET_L2_IEEE802154
-	if (iface->l2 == &NET_L2_GET_NAME(IEEE802154)) {
+	if (net_if_l2(iface) == &NET_L2_GET_NAME(IEEE802154)) {
 		if (extra) {
 			*extra = "=============";
 		}
@@ -110,7 +110,7 @@ static const char *iface2str(struct net_if *iface, const char **extra)
 #endif
 
 #ifdef CONFIG_NET_L2_ETHERNET
-	if (iface->l2 == &NET_L2_GET_NAME(ETHERNET)) {
+	if (net_if_l2(iface) == &NET_L2_GET_NAME(ETHERNET)) {
 		if (extra) {
 			*extra = "========";
 		}
@@ -120,7 +120,7 @@ static const char *iface2str(struct net_if *iface, const char **extra)
 #endif
 
 #ifdef CONFIG_NET_L2_DUMMY
-	if (iface->l2 == &NET_L2_GET_NAME(DUMMY)) {
+	if (net_if_l2(iface) == &NET_L2_GET_NAME(DUMMY)) {
 		if (extra) {
 			*extra = "=====";
 		}
@@ -130,7 +130,7 @@ static const char *iface2str(struct net_if *iface, const char **extra)
 #endif
 
 #ifdef CONFIG_NET_L2_BT
-	if (iface->l2 == &NET_L2_GET_NAME(BLUETOOTH)) {
+	if (net_if_l2(iface) == &NET_L2_GET_NAME(BLUETOOTH)) {
 		if (extra) {
 			*extra = "=========";
 		}
@@ -140,7 +140,7 @@ static const char *iface2str(struct net_if *iface, const char **extra)
 #endif
 
 #ifdef CONFIG_NET_OFFLOAD
-	if (iface->l2 == &NET_L2_GET_NAME(OFFLOAD_IP)) {
+	if (net_if_l2(iface) == &NET_L2_GET_NAME(OFFLOAD_IP)) {
 		if (extra) {
 			*extra = "==========";
 		}
@@ -161,6 +161,10 @@ static void iface_cb(struct net_if *iface, void *user_data)
 #if defined(CONFIG_NET_IPV6)
 	struct net_if_ipv6_prefix *prefix;
 	struct net_if_router *router;
+	struct net_if_ipv6 *ipv6;
+#endif
+#if defined(CONFIG_NET_IPV4)
+	struct net_if_ipv4 *ipv4;
 #endif
 	struct net_if_addr *unicast;
 	struct net_if_mcast_addr *mcast;
@@ -169,24 +173,28 @@ static void iface_cb(struct net_if *iface, void *user_data)
 
 	ARG_UNUSED(user_data);
 
-	printk("\nInterface %p (%s)\n", iface, iface2str(iface, &extra));
-	printk("=======================%s\n", extra);
+	printk("\nInterface %p (%s) [%d]\n", iface, iface2str(iface, &extra),
+	       net_if_get_by_iface(iface));
+	printk("===========================%s\n", extra);
 
 	if (!net_if_is_up(iface)) {
 		printk("Interface is down.\n");
 		return;
 	}
 
-	printk("Link addr : %s\n", net_sprint_ll_addr(iface->link_addr.addr,
-						      iface->link_addr.len));
-	printk("MTU       : %d\n", iface->mtu);
+	printk("Link addr : %s\n",
+	       net_sprint_ll_addr(net_if_get_link_addr(iface)->addr,
+				  net_if_get_link_addr(iface)->len));
+	printk("MTU       : %d\n", net_if_get_mtu(iface));
 
 #if defined(CONFIG_NET_IPV6)
 	count = 0;
 
+	ipv6 = iface->config.ip.ipv6;
+
 	printk("IPv6 unicast addresses (max %d):\n", NET_IF_MAX_IPV6_ADDR);
-	for (i = 0; i < NET_IF_MAX_IPV6_ADDR; i++) {
-		unicast = &iface->ipv6.unicast[i];
+	for (i = 0; ipv6 && i < NET_IF_MAX_IPV6_ADDR; i++) {
+		unicast = &ipv6->unicast[i];
 
 		if (!unicast->is_used) {
 			continue;
@@ -207,8 +215,8 @@ static void iface_cb(struct net_if *iface, void *user_data)
 	count = 0;
 
 	printk("IPv6 multicast addresses (max %d):\n", NET_IF_MAX_IPV6_MADDR);
-	for (i = 0; i < NET_IF_MAX_IPV6_MADDR; i++) {
-		mcast = &iface->ipv6.mcast[i];
+	for (i = 0; ipv6 && i < NET_IF_MAX_IPV6_MADDR; i++) {
+		mcast = &ipv6->mcast[i];
 
 		if (!mcast->is_used) {
 			continue;
@@ -227,8 +235,8 @@ static void iface_cb(struct net_if *iface, void *user_data)
 	count = 0;
 
 	printk("IPv6 prefixes (max %d):\n", NET_IF_MAX_IPV6_PREFIX);
-	for (i = 0; i < NET_IF_MAX_IPV6_PREFIX; i++) {
-		prefix = &iface->ipv6.prefix[i];
+	for (i = 0; ipv6 && i < NET_IF_MAX_IPV6_PREFIX; i++) {
+		prefix = &ipv6->prefix[i];
 
 		if (!prefix->is_used) {
 			continue;
@@ -254,11 +262,17 @@ static void iface_cb(struct net_if *iface, void *user_data)
 		       router->is_infinite ? " infinite" : "");
 	}
 
-	printk("IPv6 hop limit           : %d\n", iface->ipv6.hop_limit);
-	printk("IPv6 base reachable time : %d\n",
-	       iface->ipv6.base_reachable_time);
-	printk("IPv6 reachable time      : %d\n", iface->ipv6.reachable_time);
-	printk("IPv6 retransmit timer    : %d\n", iface->ipv6.retrans_timer);
+	if (ipv6) {
+		printk("IPv6 hop limit           : %d\n",
+		       ipv6->hop_limit);
+		printk("IPv6 base reachable time : %d\n",
+		       ipv6->base_reachable_time);
+		printk("IPv6 reachable time      : %d\n",
+		       ipv6->reachable_time);
+		printk("IPv6 retransmit timer    : %d\n",
+		       ipv6->retrans_timer);
+	}
+
 #endif /* CONFIG_NET_IPV6 */
 
 #if defined(CONFIG_NET_IPV4)
@@ -267,10 +281,10 @@ static void iface_cb(struct net_if *iface, void *user_data)
 	 */
 	if (
 #if defined(CONFIG_NET_L2_IEEE802154)
-		(iface->l2 == &NET_L2_GET_NAME(IEEE802154)) ||
+		(net_if_l2(iface) == &NET_L2_GET_NAME(IEEE802154)) ||
 #endif
 #if defined(CONFIG_NET_L2_BT)
-		 (iface->l2 == &NET_L2_GET_NAME(BLUETOOTH)) ||
+		 (net_if_l2(iface) == &NET_L2_GET_NAME(BLUETOOTH)) ||
 #endif
 		 0) {
 		printk("IPv4 not supported for this interface.\n");
@@ -279,9 +293,11 @@ static void iface_cb(struct net_if *iface, void *user_data)
 
 	count = 0;
 
+	ipv4 = iface->config.ip.ipv4;
+
 	printk("IPv4 unicast addresses (max %d):\n", NET_IF_MAX_IPV4_ADDR);
-	for (i = 0; i < NET_IF_MAX_IPV4_ADDR; i++) {
-		unicast = &iface->ipv4.unicast[i];
+	for (i = 0; ipv4 && i < NET_IF_MAX_IPV4_ADDR; i++) {
+		unicast = &ipv4->unicast[i];
 
 		if (!unicast->is_used) {
 			continue;
@@ -303,8 +319,8 @@ static void iface_cb(struct net_if *iface, void *user_data)
 	count = 0;
 
 	printk("IPv4 multicast addresses (max %d):\n", NET_IF_MAX_IPV4_MADDR);
-	for (i = 0; i < NET_IF_MAX_IPV4_MADDR; i++) {
-		mcast = &iface->ipv4.mcast[i];
+	for (i = 0; ipv4 && i < NET_IF_MAX_IPV4_MADDR; i++) {
+		mcast = &ipv4->mcast[i];
 
 		if (!mcast->is_used) {
 			continue;
@@ -320,22 +336,27 @@ static void iface_cb(struct net_if *iface, void *user_data)
 		printk("\t<none>\n");
 	}
 
-	printk("IPv4 gateway : %s\n",
-	       net_sprint_ipv4_addr(&iface->ipv4.gw));
-	printk("IPv4 netmask : %s\n",
-	       net_sprint_ipv4_addr(&iface->ipv4.netmask));
+	if (ipv4) {
+		printk("IPv4 gateway : %s\n",
+		       net_sprint_ipv4_addr(&ipv4->gw));
+		printk("IPv4 netmask : %s\n",
+		       net_sprint_ipv4_addr(&ipv4->netmask));
+	}
 #endif /* CONFIG_NET_IPV4 */
 
 #if defined(CONFIG_NET_DHCPV4)
-	printk("DHCPv4 lease time : %u\n", iface->dhcpv4.lease_time);
-	printk("DHCPv4 renew time : %u\n", iface->dhcpv4.renewal_time);
+	printk("DHCPv4 lease time : %u\n",
+	       iface->config.dhcpv4.lease_time);
+	printk("DHCPv4 renew time : %u\n",
+	       iface->config.dhcpv4.renewal_time);
 	printk("DHCPv4 server     : %s\n",
-	       net_sprint_ipv4_addr(&iface->dhcpv4.server_id));
+	       net_sprint_ipv4_addr(&iface->config.dhcpv4.server_id));
 	printk("DHCPv4 requested  : %s\n",
-	       net_sprint_ipv4_addr(&iface->dhcpv4.requested_ip));
+	       net_sprint_ipv4_addr(&iface->config.dhcpv4.requested_ip));
 	printk("DHCPv4 state      : %s\n",
-	       net_dhcpv4_state_name(iface->dhcpv4.state));
-	printk("DHCPv4 attempts   : %d\n", iface->dhcpv4.attempts);
+	       net_dhcpv4_state_name(iface->config.dhcpv4.state));
+	printk("DHCPv4 attempts   : %d\n",
+	       iface->config.dhcpv4.attempts);
 #endif /* CONFIG_NET_DHCPV4 */
 }
 
@@ -424,6 +445,32 @@ static void iface_per_mcast_route_cb(struct net_if *iface, void *user_data)
 #endif /* CONFIG_NET_ROUTE_MCAST */
 
 #if defined(CONFIG_NET_STATISTICS)
+
+#if NET_TC_COUNT > 1
+static const char *priority2str(enum net_priority priority)
+{
+	switch (priority) {
+	case NET_PRIORITY_BK:
+		return "BK"; /* Background */
+	case NET_PRIORITY_BE:
+		return "BE"; /* Best effort */
+	case NET_PRIORITY_EE:
+		return "EE"; /* Excellent effort */
+	case NET_PRIORITY_CA:
+		return "CA"; /* Critical applications */
+	case NET_PRIORITY_VI:
+		return "VI"; /* Video, < 100 ms latency and jitter */
+	case NET_PRIORITY_VO:
+		return "VO"; /* Voice, < 10 ms latency and jitter  */
+	case NET_PRIORITY_IC:
+		return "IC"; /* Internetwork control */
+	case NET_PRIORITY_NC:
+		return "NC"; /* Network control */
+	}
+
+	return "??";
+}
+#endif
 
 static inline void net_shell_print_statistics(void)
 {
@@ -539,6 +586,38 @@ static inline void net_shell_print_statistics(void)
 	printk("Bytes received %u\n", GET_STAT(bytes.received));
 	printk("Bytes sent     %u\n", GET_STAT(bytes.sent));
 	printk("Processing err %d\n", GET_STAT(processing_error));
+
+#if NET_TC_COUNT > 1
+	{
+		int i;
+
+#if NET_TC_TX_COUNT > 1
+		printk("TX traffic class statistics:\n");
+		printk("TC  Priority\tSent pkts\tbytes\n");
+
+		for (i = 0; i < NET_TC_TX_COUNT; i++) {
+			printk("[%d] %s (%d)\t%d\t\t%d\n", i,
+			       priority2str(GET_STAT(tc.sent[i].priority)),
+			       GET_STAT(tc.sent[i].priority),
+			       GET_STAT(tc.sent[i].pkts),
+			       GET_STAT(tc.sent[i].bytes));
+		}
+#endif
+
+#if NET_TC_RX_COUNT > 1
+		printk("RX traffic class statistics:\n");
+		printk("TC  Priority\tRecv pkts\tbytes\n");
+
+		for (i = 0; i < NET_TC_RX_COUNT; i++) {
+			printk("[%d] %s (%d)\t%d\t\t%d\n", i,
+			       priority2str(GET_STAT(tc.recv[i].priority)),
+			       GET_STAT(tc.recv[i].priority),
+			       GET_STAT(tc.recv[i].pkts),
+			       GET_STAT(tc.recv[i].bytes));
+		}
+	}
+#endif
+#endif /* NET_TC_COUNT > 1 */
 }
 #endif /* CONFIG_NET_STATISTICS */
 
@@ -2142,11 +2221,23 @@ int net_shell_cmd_stacks(int argc, char *argv[])
 					     info->size, &pcnt, &unused);
 
 #if defined(CONFIG_INIT_STACKS)
-		printk("%s [%s] stack size %zu/%zu bytes unused %u usage"
-		       " %zu/%zu (%u %%)\n",
-		       info->pretty_name, info->name, info->orig_size,
-		       info->size, unused,
-		       info->size - unused, info->size, pcnt);
+		/* If the index is <0, then this stack is not part of stack
+		 * array so do not print the index value in this case.
+		 */
+		if (info->idx >= 0) {
+			printk("%s-%d [%s-%d] stack size %zu/%zu bytes "
+			       "unused %u usage %zu/%zu (%u %%)\n",
+			       info->pretty_name, info->prio, info->name,
+			       info->idx, info->orig_size,
+			       info->size, unused,
+			       info->size - unused, info->size, pcnt);
+		} else {
+			printk("%s [%s] stack size %zu/%zu bytes unused %u "
+			       "usage %zu/%zu (%u %%)\n",
+			       info->pretty_name, info->name, info->orig_size,
+			       info->size, unused,
+			       info->size - unused, info->size, pcnt);
+		}
 #else
 		printk("%s [%s] stack size %zu usage not available\n",
 		       info->pretty_name, info->name, info->orig_size);
@@ -2245,7 +2336,7 @@ static void get_my_ipv4_addr(struct net_if *iface,
 {
 	/* Just take the first IPv4 address of an interface. */
 	memcpy(&net_sin(myaddr)->sin_addr,
-	       &iface->ipv4.unicast[0].address.in_addr,
+	       &iface->config.ip.ipv4->unicast[0].address.in_addr,
 	       sizeof(struct in_addr));
 
 	net_sin(myaddr)->sin_port = 0; /* let the IP stack to select */

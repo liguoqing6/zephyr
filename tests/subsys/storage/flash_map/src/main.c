@@ -43,6 +43,7 @@ void flash_map_test_case_2(void)
 
 	memset(wd, 0xa5, sizeof(wd));
 
+	sec_cnt = ARRAY_SIZE(fs_sectors);
 	rc = flash_area_get_sectors(FLASH_AREA_IMAGE_1, &sec_cnt, fs_sectors);
 	zassert_true(rc == 0, "flash_area_get_sectors failed");
 
@@ -95,7 +96,7 @@ void flash_map_test_case_2(void)
 
 }
 
-void test_main(void *p1, void *p2, void *p3)
+void test_main(void)
 {
 	ztest_test_suite(test_flash_map,
 			 ztest_unit_test(flash_map_test_case_2));

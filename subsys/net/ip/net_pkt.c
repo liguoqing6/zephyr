@@ -318,6 +318,10 @@ struct net_pkt *net_pkt_get_reserve(struct k_mem_slab *slab,
 	pkt->ref = 1;
 	pkt->slab = slab;
 
+#if defined(CONFIG_NET_TX_DEFAULT_PRIORITY) && (NET_TC_COUNT > 1)
+	net_pkt_set_priority(pkt, CONFIG_NET_TX_DEFAULT_PRIORITY);
+#endif
+
 #if defined(CONFIG_NET_DEBUG_NET_PKT)
 	net_pkt_alloc_add(pkt, true, caller, line);
 
@@ -503,8 +507,10 @@ static struct net_pkt *net_pkt_get(struct k_mem_slab *slab,
 	}
 
 	iface = net_context_get_iface(context);
-
-	NET_ASSERT(iface);
+	if (!iface) {
+		NET_ERR("Context has no interface");
+		return NULL;
+	}
 
 	if (net_context_get_family(context) == AF_INET6) {
 		addr6 = &((struct sockaddr_in6 *) &context->remote)->sin6_addr;
@@ -526,6 +532,17 @@ static struct net_pkt *net_pkt_get(struct k_mem_slab *slab,
 	net_pkt_set_iface(pkt, iface);
 	family = net_context_get_family(context);
 	net_pkt_set_family(pkt, family);
+
+#if defined(CONFIG_NET_CONTEXT_PRIORITY) && (NET_TC_COUNT > 1)
+	{
+		u8_t prio;
+
+		if (net_context_get_option(context, NET_OPT_PRIORITY, &prio,
+					   NULL) == 0) {
+			net_pkt_set_priority(pkt, prio);
+		}
+	}
+#endif /* CONFIG_NET_CONTEXT_PRIORITY */
 
 	if (slab != &rx_pkts) {
 		uint16_t iface_len, data_len = 0;
@@ -589,8 +606,10 @@ static struct net_buf *_pkt_get_data(struct net_buf_pool *pool,
 	}
 
 	iface = net_context_get_iface(context);
-
-	NET_ASSERT(iface);
+	if (!iface) {
+		NET_ERR("Context has no interface");
+		return NULL;
+	}
 
 	if (net_context_get_family(context) == AF_INET6) {
 		addr6 = &((struct sockaddr_in6 *) &context->remote)->sin6_addr;
@@ -1203,7 +1222,7 @@ u16_t net_pkt_append(struct net_pkt *pkt, u16_t len, const u8_t *data,
 	struct net_context *ctx = NULL;
 	u16_t max_len, appended;
 
-	if (!pkt || !data) {
+	if (!pkt || !data || !len) {
 		return 0;
 	}
 
@@ -1935,6 +1954,11 @@ struct net_tcp_hdr *net_pkt_tcp_data(struct net_pkt *pkt)
 	if (!frag) {
 		/* We tried to read past the end of the data */
 		too_short_msg("tcp data", pkt, offset, 0);
+		return NULL;
+	}
+
+	if (!frag->data) {
+		NET_ERR("NULL fragment data!");
 		return NULL;
 	}
 

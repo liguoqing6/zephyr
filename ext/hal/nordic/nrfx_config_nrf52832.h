@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2017, Nordic Semiconductor ASA
+ * Copyright (c) 2017 - 2018, Nordic Semiconductor ASA
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -12,14 +12,14 @@
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
  *
- * 3. Neither the name of Nordic Semiconductor ASA nor the names of its
+ * 3. Neither the name of the copyright holder nor the names of its
  *    contributors may be used to endorse or promote products derived from this
  *    software without specific prior written permission.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY, AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL NORDIC SEMICONDUCTOR ASA OR CONTRIBUTORS BE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
  * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
  * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
  * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
@@ -1605,28 +1605,28 @@
 
 // <e> NRFX_SPIM_ENABLED - nrfx_spim - SPIM peripheral driver
 //==========================================================
-#ifndef NRFX_SPIM_ENABLED
-#define NRFX_SPIM_ENABLED 0
+#ifdef CONFIG_NRFX_SPIM
+#define NRFX_SPIM_ENABLED 1
 #endif
 // <q> NRFX_SPIM0_ENABLED  - Enable SPIM0 instance
 
 
-#ifndef NRFX_SPIM0_ENABLED
-#define NRFX_SPIM0_ENABLED 0
+#ifdef CONFIG_SPI_0_NRF_SPIM
+#define NRFX_SPIM0_ENABLED 1
 #endif
 
 // <q> NRFX_SPIM1_ENABLED  - Enable SPIM1 instance
 
 
-#ifndef NRFX_SPIM1_ENABLED
-#define NRFX_SPIM1_ENABLED 0
+#ifdef CONFIG_SPI_1_NRF_SPIM
+#define NRFX_SPIM1_ENABLED 1
 #endif
 
 // <q> NRFX_SPIM2_ENABLED  - Enable SPIM2 instance
 
 
-#ifndef NRFX_SPIM2_ENABLED
-#define NRFX_SPIM2_ENABLED 0
+#ifdef CONFIG_SPI_2_NRF_SPIM
+#define NRFX_SPIM2_ENABLED 1
 #endif
 
 // <o> NRFX_SPIM_MISO_PULL_CFG  - MISO pin pull configuration.
@@ -1723,28 +1723,28 @@
 
 // <e> NRFX_SPIS_ENABLED - nrfx_spis - SPIS peripheral driver
 //==========================================================
-#ifndef NRFX_SPIS_ENABLED
-#define NRFX_SPIS_ENABLED 0
+#ifdef CONFIG_NRFX_SPIS
+#define NRFX_SPIS_ENABLED 1
 #endif
 // <q> NRFX_SPIS0_ENABLED  - Enable SPIS0 instance
 
 
-#ifndef NRFX_SPIS0_ENABLED
-#define NRFX_SPIS0_ENABLED 0
+#ifdef CONFIG_SPI_0_NRF_SPIS
+#define NRFX_SPIS0_ENABLED 1
 #endif
 
 // <q> NRFX_SPIS1_ENABLED  - Enable SPIS1 instance
 
 
-#ifndef NRFX_SPIS1_ENABLED
-#define NRFX_SPIS1_ENABLED 0
+#ifdef CONFIG_SPI_1_NRF_SPIS
+#define NRFX_SPIS1_ENABLED 1
 #endif
 
 // <q> NRFX_SPIS2_ENABLED  - Enable SPIS2 instance
 
 
-#ifndef NRFX_SPIS2_ENABLED
-#define NRFX_SPIS2_ENABLED 0
+#ifdef CONFIG_SPI_2_NRF_SPIS
+#define NRFX_SPIS2_ENABLED 1
 #endif
 
 // <o> NRFX_SPIS_DEFAULT_CONFIG_IRQ_PRIORITY  - Interrupt priority
@@ -1760,26 +1760,6 @@
 
 #ifndef NRFX_SPIS_DEFAULT_CONFIG_IRQ_PRIORITY
 #define NRFX_SPIS_DEFAULT_CONFIG_IRQ_PRIORITY 7
-#endif
-
-// <o> NRFX_SPIS_DEFAULT_MODE  - Mode
-
-// <0=> MODE_0
-// <1=> MODE_1
-// <2=> MODE_2
-// <3=> MODE_3
-
-#ifndef NRFX_SPIS_DEFAULT_MODE
-#define NRFX_SPIS_DEFAULT_MODE 0
-#endif
-
-// <o> NRFX_SPIS_DEFAULT_BIT_ORDER  - SPIS default bit order
-
-// <0=> MSB first
-// <1=> LSB first
-
-#ifndef NRFX_SPIS_DEFAULT_BIT_ORDER
-#define NRFX_SPIS_DEFAULT_BIT_ORDER 0
 #endif
 
 // <o> NRFX_SPIS_DEFAULT_DEF - SPIS default DEF character  <0-255>
@@ -1865,28 +1845,28 @@
 
 // <e> NRFX_SPI_ENABLED - nrfx_spi - SPI peripheral driver
 //==========================================================
-#ifndef NRFX_SPI_ENABLED
-#define NRFX_SPI_ENABLED 0
+#ifdef CONFIG_NRFX_SPI
+#define NRFX_SPI_ENABLED 1
 #endif
 // <q> NRFX_SPI0_ENABLED  - Enable SPI0 instance
 
 
-#ifndef NRFX_SPI0_ENABLED
-#define NRFX_SPI0_ENABLED 0
+#ifdef CONFIG_SPI_0_NRF_SPI
+#define NRFX_SPI0_ENABLED 1
 #endif
 
 // <q> NRFX_SPI1_ENABLED  - Enable SPI1 instance
 
 
-#ifndef NRFX_SPI1_ENABLED
-#define NRFX_SPI1_ENABLED 0
+#ifdef CONFIG_SPI_1_NRF_SPI
+#define NRFX_SPI1_ENABLED 1
 #endif
 
 // <q> NRFX_SPI2_ENABLED  - Enable SPI2 instance
 
 
-#ifndef NRFX_SPI2_ENABLED
-#define NRFX_SPI2_ENABLED 0
+#ifdef CONFIG_SPI_2_NRF_SPI
+#define NRFX_SPI2_ENABLED 1
 #endif
 
 // <o> NRFX_SPI_MISO_PULL_CFG  - MISO pin pull configuration.

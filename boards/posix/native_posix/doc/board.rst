@@ -156,6 +156,11 @@ Run the zephyr.exe executable as you would any other Linux console application.
    $ zephyr/zephyr.exe
    # Press Ctrl+C to exit
 
+This executable accepts several command line options depending on the
+compilation configuration.
+You can run it with the ``--help`` command line switch to get a list of
+available options.
+
 Note that the Zephyr kernel does not actually exit once the application is
 finished. It simply goes into the idle loop forever.
 Therefore you must stop the application manually (Ctrl+C in Linux).
@@ -373,11 +378,29 @@ The following peripherals are currently provided with this board:
 
 **Entropy device**:
   An entropy device based on the host :c:func:`random` API.
+  This device will generate the same sequence of random number if initialized
+  with the same random seed.
+  You can change this random seed value by using the command line option:
+  ``--seed=<random_seed>`` where the value specified is a 32-bit integer
+  such as 97229 (decimal),  0x17BCD (hex), or 0275715 (octal).
 
 **Interrupt controller**:
   A simple yet generic interrupt controller is provided. It can nest interrupts
   and provides interrupt priorities. Interrupts can be individually masked or
   unmasked. SW interrupts are also supported.
+
+**Ethernet driver**:
+  A simple TAP based ethernet driver is provided. The driver will create
+  a **zeth** network interface to the host system. One can communicate with
+  Zephyr via this network interface. Multiple TAP based network interfaces can
+  be created if needed. The IP address configuration can be specified for each
+  network interface instance.
+  See :option:`CONFIG_ETH_NATIVE_POSIX_SETUP_SCRIPT` option for more details.
+  The :ref:`eth-native-posix-sample` sample app provides
+  some use examples and more information about this driver configuration.
+
+  Note that this device can only be used with Linux hosts, and that the user
+  needs elevated permissions.
 
 Shell support
 *************

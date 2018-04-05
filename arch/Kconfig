@@ -15,6 +15,7 @@ choice
 
 config ARC
 	bool "ARC architecture"
+	select HAS_DTS
 
 config ARM
 	bool "ARM architecture"
@@ -87,6 +88,13 @@ config PRIVILEGED_STACK_SIZE
 	  in addition to the user mode thread stack.  During normal execution,
 	  this region will be inaccessible from user mode.  During system calls,
 	  this region will be utilized by the system call.
+
+config STACK_GROWS_UP
+	bool "Stack grows towards higher memory addresses"
+	default n
+	help
+	  Select this option if the architecture has upward growing thread
+	  stacks. This is not common.
 
 config MAX_THREAD_BYTES
 	int "Bytes to use when tracking object thread permissions"
@@ -268,13 +276,6 @@ config FP_SHARING
 	  registers.
 
 endmenu
-
-config FLASH_HAS_PAGE_LAYOUT
-	bool
-	default n
-	help
-	  This option is enabled when the SoC flash driver supports
-	  retrieving the layout of flash memory pages.
 
 #
 # End hidden PM feature configs

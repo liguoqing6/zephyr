@@ -23,6 +23,9 @@ choice
 
 config BT_LL_SW
 	bool "Software-based BLE Link Layer"
+	select ENTROPY_GENERATOR
+	select ENTROPY_NRF5_RNG if SOC_FAMILY_NRF
+	select ENTROPY_NRF5_BIAS_CORRECTION if SOC_FAMILY_NRF
 	help
 	  Use Zephyr software BLE Link Layer implementation.
 
@@ -108,10 +111,15 @@ config BT_CTLR_TX_BUFFER_SIZE
 config BT_CTLR_COMPANY_ID
 	prompt "Company Id"
 	hex
-	default 0xFFFF
+	default 0x05F1
 	range 0x0000 0xFFFF
 	help
-	  Set the Company Id that will be used in VERSION_IND PDU.
+	  Set the Bluetooth Company Identifier that will be used in
+	  the VERSION_IND PDU. The Linux Foundation's Company Identifier
+	  (0x05F1) is the default value for this option although silicon vendors
+	  and hardware manufacturers can set their own. The full list of
+	  Bluetooth Company Identifiers can be found here:
+	  https://www.bluetooth.com/specifications/assigned-numbers/company-identifiers
 
 config BT_CTLR_SUBVERSION_NUMBER
 	prompt "Subversion Number"
@@ -159,7 +167,7 @@ config BT_CTLR_RL_SIZE
 	depends on BT_CTLR_PRIVACY
 	int
 	default 8
-	range 1 8 if SOC_FAMILY_NRF5
+	range 1 8 if SOC_FAMILY_NRF
 	help
 	  Set the size of the Resolving List for LE Controller-based Privacy.
 	  On nRF5x-based controllers, the hardware imposes a limit of 8 devices.
@@ -477,7 +485,7 @@ endif # BT_CTLR_GPIO_LNA
 
 config BT_CTLR_PA_LNA_GPIOTE_CHAN
 	# Hidden "nRF5 GPIO PA/LNA GPIOTE Channel"
-	depends on SOC_FAMILY_NRF5 && (BT_CTLR_GPIO_PA || BT_CTLR_GPIO_LNA)
+	depends on SOC_FAMILY_NRF && (BT_CTLR_GPIO_PA || BT_CTLR_GPIO_LNA)
 	int
 	default 3
 	help

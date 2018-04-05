@@ -22,6 +22,7 @@
 #include <usb_device.h>
 #include <usb_common.h>
 #include <class/usb_cdc.h>
+#include <net/ethernet.h>
 
 #include "../../usb_descriptor.h"
 #include "../../composite.h"
@@ -29,7 +30,7 @@
 
 static struct __netusb {
 	struct net_if *iface;
-	bool configured;
+	bool enabled;
 	struct netusb_function *func;
 } netusb;
 
@@ -39,8 +40,8 @@ static int netusb_send(struct net_if *iface, struct net_pkt *pkt)
 
 	SYS_LOG_DBG("Send pkt, len %u", net_pkt_get_len(pkt));
 
-	if (!netusb.configured) {
-		SYS_LOG_ERR("Unconfigured device, conf %u", netusb.configured);
+	if (!netusb.enabled) {
+		SYS_LOG_ERR("interface disabled");
 		return -ENODEV;
 	}
 
@@ -81,25 +82,22 @@ static int netusb_disconnect_media(void)
 	return netusb.func->connect_media(false);
 }
 
-static void netusb_status_configured(u8_t *conf)
+static void netusb_status_interface(u8_t *iface)
 {
-	SYS_LOG_INF("Enable configuration number %u", *conf);
+	SYS_LOG_INF("Enable interface %u", *iface);
 
-	switch (*conf) {
-	case 1:
-		netusb.configured = true;
+#if defined(CONFIG_USB_COMPOSITE_DEVICE)
+	if (*iface == NETUSB_IFACE_IDX) {
+#else
+	if (*iface == 1) {
+#endif
+		netusb.enabled = true;
 		net_if_up(netusb.iface);
 		netusb_connect_media();
-		break;
-	case 0:
-		netusb.configured = false;
+	} else {
+		netusb.enabled = false;
 		netusb_disconnect_media();
 		net_if_down(netusb.iface);
-		break;
-	default:
-		SYS_LOG_ERR("Wrong configuration chosen: %u", *conf);
-		netusb.configured = false;
-		break;
 	}
 }
 
@@ -118,7 +116,6 @@ static void netusb_status_cb(enum usb_dc_status_code status, u8_t *param)
 		break;
 	case USB_DC_CONFIGURED:
 		SYS_LOG_DBG("USB device configured");
-		netusb_status_configured(param);
 		break;
 	case USB_DC_DISCONNECTED:
 		SYS_LOG_DBG("USB device disconnected");
@@ -128,6 +125,10 @@ static void netusb_status_cb(enum usb_dc_status_code status, u8_t *param)
 		break;
 	case USB_DC_RESUME:
 		SYS_LOG_DBG("USB device resumed");
+		break;
+	case USB_DC_INTERFACE:
+		SYS_LOG_DBG("USB interface selected");
+		netusb_status_interface(param);
 		break;
 	case USB_DC_UNKNOWN:
 	default:
@@ -139,12 +140,12 @@ static void netusb_status_cb(enum usb_dc_status_code status, u8_t *param)
 static int netusb_class_handler(struct usb_setup_packet *setup,
 				s32_t *len, u8_t **data)
 {
-	SYS_LOG_DBG("len %d req_type 0x%x req 0x%x conf %u",
+	SYS_LOG_DBG("len %d req_type 0x%x req 0x%x enabled %u",
 		    *len, setup->bmRequestType, setup->bRequest,
-		    netusb.configured);
+		    netusb.enabled);
 
-	if (!netusb.configured) {
-		SYS_LOG_ERR("Unconfigured device, conf %u", netusb.configured);
+	if (!netusb.enabled) {
+		SYS_LOG_ERR("interface disabled");
 		return -ENODEV;
 	}
 
@@ -272,9 +273,12 @@ static void netusb_init(struct net_if *iface)
 	SYS_LOG_INF("netusb initialized");
 }
 
-static struct net_if_api api_funcs = {
-	.init = netusb_init,
-	.send = netusb_send,
+static const struct ethernet_api netusb_api_funcs = {
+	.iface_api = {
+		.init = netusb_init,
+		.send = netusb_send,
+	},
+	.get_capabilities = NULL,
 };
 
 static int netusb_init_dev(struct device *dev)
@@ -284,5 +288,5 @@ static int netusb_init_dev(struct device *dev)
 }
 
 NET_DEVICE_INIT(eth_netusb, "eth_netusb", netusb_init_dev, NULL, NULL,
-		CONFIG_ETH_INIT_PRIORITY, &api_funcs, ETHERNET_L2,
-		NET_L2_GET_CTX_TYPE(ETHERNET_L2), 1500);
+		CONFIG_ETH_INIT_PRIORITY, &netusb_api_funcs, ETHERNET_L2,
+		NET_L2_GET_CTX_TYPE(ETHERNET_L2), NETUSB_MTU);

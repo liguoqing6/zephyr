@@ -103,8 +103,6 @@
 #define DFU_CLASS			0xFE
 
 /* Sub-classes */
-#define ACM_SUBCLASS			0x02
-#define CDC_ECM_SUBCLASS		0x06
 #define CDC_NCM_SUBCLASS		0x0d
 #define BOOT_INTERFACE_SUBCLASS		0x01
 #define SCSI_TRANSPARENT_SUBCLASS	0x06
@@ -144,7 +142,7 @@ struct usb_device_descriptor {
 	u8_t bNumConfigurations;
 } __packed;
 
-/** UNICODE String Descriptor */
+/** Unicode (UTF16LE) String Descriptor */
 struct usb_string_descriptor {
 	u8_t bLength;
 	u8_t bDescriptorType;

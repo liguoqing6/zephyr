@@ -29,6 +29,8 @@ list_template = """
 
 #ifndef _ASMLANGUAGE
 
+#include <zephyr/types.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -75,7 +77,7 @@ extern u32_t %s(u32_t arg1, u32_t arg2, u32_t arg3,
 """
 
 weak_template = """
-__weak ALIAS_OF(_handler_no_syscall)
+__weak ALIAS_OF(handler_no_syscall)
 u32_t %s(u32_t arg1, u32_t arg2, u32_t arg3,
          u32_t arg4, u32_t arg5, u32_t arg6, void *ssf);
 """
@@ -117,7 +119,7 @@ def main():
         handlers.append(handler)
 
     with open(args.syscall_dispatch, "w") as fp:
-        table_entries.append("[K_SYSCALL_BAD] = _handler_bad_syscall")
+        table_entries.append("[K_SYSCALL_BAD] = handler_bad_syscall")
 
         weak_defines = "".join([weak_template % name for name in handlers])
 

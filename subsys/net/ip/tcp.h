@@ -179,6 +179,8 @@ struct net_tcp {
 	u16_t send_mss;
 };
 
+typedef void (*net_tcp_cb_t)(struct net_tcp *tcp, void *user_data);
+
 static inline bool net_tcp_is_used(struct net_tcp *tcp)
 {
 	NET_ASSERT(tcp);
@@ -244,6 +246,7 @@ void net_tcp_change_state(struct net_tcp *tcp, enum net_tcp_state new_state);
 #define net_tcp_change_state(...)
 #endif
 
+#if defined(CONFIG_NET_TCP)
 /**
  * @brief Allocate TCP connection context.
  *
@@ -313,8 +316,6 @@ int net_tcp_prepare_reset(struct net_tcp *tcp,
 			  const struct sockaddr *remote,
 			  struct net_pkt **pkt);
 
-typedef void (*net_tcp_cb_t)(struct net_tcp *tcp, void *user_data);
-
 /**
  * @brief Go through all the TCP connections and call callback
  * for each of them.
@@ -328,10 +329,14 @@ void net_tcp_foreach(net_tcp_cb_t cb, void *user_data);
  * @brief Send available queued data over TCP connection
  *
  * @param context TCP context
+ * @param cb TCP callback function
+ * @param token TCP token
+ * @param user_data User specified data
  *
  * @return 0 if ok, < 0 if error
  */
-int net_tcp_send_data(struct net_context *context);
+int net_tcp_send_data(struct net_context *context, net_context_send_cb_t cb,
+		      void *token, void *user_data);
 
 /**
  * @brief Enqueue a single packet for transmission
@@ -398,7 +403,6 @@ static inline enum net_tcp_state net_tcp_get_state(const struct net_tcp *tcp)
  */
 bool net_tcp_validate_seq(struct net_tcp *tcp, struct net_pkt *pkt);
 
-#if defined(CONFIG_NET_TCP)
 /**
  * @brief Get TCP packet header data from net_pkt. The array values are in
  * network byte order and other values are in host byte order.
@@ -475,7 +479,228 @@ u16_t net_tcp_get_chksum(struct net_pkt *pkt, struct net_buf *frag);
 int net_tcp_parse_opts(struct net_pkt *pkt, int opt_totlen,
 		       struct net_tcp_options *opts);
 
+/**
+ * @brief Get TCP header length
+ *
+ * @param pkt Network packet
+ *
+ * @return TCP header length
+ */
+int tcp_hdr_len(struct net_pkt *pkt);
+
+/**
+ * @brief TCP receive function
+ *
+ * @param context Network context
+ * @param cb TCP receive callback function
+ * @param user_data TCP receive callback user data
+ *
+ * @return 0 if no erro, < 0 in case of error
+ */
+int net_tcp_recv(struct net_context *context, net_context_recv_cb_t cb,
+		 void *user_data);
+
+
+/**
+ * @brief Queue a TCP FIN packet if needed to close the socket
+ *
+ * @param context Network context
+ *
+ * @return 0 on success where a TCP FIN packet has been queueed, -ENOTCONN
+ *         in case the socket was not connected or listening, -EOPNOTSUPP
+ *         in case it was not a TCP socket or -EPROTONOSUPPORT if TCP is not
+ *         supported
+ */
+int net_tcp_put(struct net_context *context);
+
+/**
+ * @brief Set TCP socket into listening state
+ *
+ * @param context Network context
+ *
+ * @return 0 if successful, -EOPNOTSUPP if the context was not for TCP,
+ *         -EPROTONOSUPPORT if TCP is not supported
+ */
+int net_tcp_listen(struct net_context *context);
+
+/**
+ * @brief Update TCP receive window
+ *
+ * @param context Network context
+ * @param delta Receive window delta
+ *
+ * @return 0 on success, -EPROTOTYPE if there is no TCP context, -EINVAL
+ *         if the receive window delta is out of bounds, -EPROTONOSUPPORT
+ *         if TCP is not supported
+ */
+int net_tcp_update_recv_wnd(struct net_context *context, s32_t delta);
+
+/**
+ * @brief Initialize TCP parts of a context
+ *
+ * @param context Network context
+ *
+ * @return 0 if successful, < 0 on error
+ */
+int net_tcp_get(struct net_context *context);
+
+/**
+ * @brief Unref TCP parts of a context
+ *
+ * @param context Network context
+ *
+ * @return 0 if successful, < 0 on error
+ */
+int net_tcp_unref(struct net_context *context);
+
+/**
+ * @brief Accept TCP connection
+ *
+ * @param context Network context
+ * @param cb Accept callback
+ * @param user_data Accept callback user data
+ *
+ * @return 0 on success, < 0 on error
+ */
+int net_tcp_accept(struct net_context *context, net_tcp_accept_cb_t cb,
+		   void *user_data);
+
+/**
+ * @brief Connect TCP connection
+ *
+ * @param context Network context
+ * @param addr Remote address
+ * @param laddr Local address
+ * @param rport Remote port
+ * @param lport Local port
+ * @param timeout Connect timeout
+ * @param cb Connect callback
+ * @param user_data Connect callback user data
+ *
+ * @return 0 on success, < 0 on error
+ */
+int net_tcp_connect(struct net_context *context,
+		    const struct sockaddr *addr,
+		    struct sockaddr *laddr,
+		    u16_t rport,
+		    u16_t lport,
+		    s32_t timeout,
+		    net_context_connect_cb_t cb,
+		    void *user_data);
+
 #else
+static inline struct net_tcp *net_tcp_alloc(struct net_context *context)
+{
+	ARG_UNUSED(context);
+	return NULL;
+}
+
+static inline int net_tcp_release(struct net_tcp *tcp)
+{
+	ARG_UNUSED(tcp);
+	return 0;
+}
+
+static inline int net_tcp_prepare_segment(struct net_tcp *tcp, u8_t flags,
+					  void *options, size_t optlen,
+					  const struct sockaddr_ptr *local,
+					  const struct sockaddr *remote,
+					  struct net_pkt **send_pkt)
+{
+	ARG_UNUSED(tcp);
+	ARG_UNUSED(flags);
+	ARG_UNUSED(options);
+	ARG_UNUSED(optlen);
+	ARG_UNUSED(local);
+	ARG_UNUSED(remote);
+	ARG_UNUSED(send_pkt);
+	return 0;
+}
+
+static inline int net_tcp_prepare_ack(struct net_tcp *tcp,
+				      const struct sockaddr *remote,
+				      struct net_pkt **pkt)
+{
+	ARG_UNUSED(tcp);
+	ARG_UNUSED(remote);
+	ARG_UNUSED(pkt);
+	return 0;
+}
+
+static inline int net_tcp_prepare_reset(struct net_tcp *tcp,
+					const struct sockaddr *remote,
+					struct net_pkt **pkt)
+{
+	ARG_UNUSED(tcp);
+	ARG_UNUSED(remote);
+	ARG_UNUSED(pkt);
+	return 0;
+}
+
+static inline void net_tcp_foreach(net_tcp_cb_t cb, void *user_data)
+{
+	ARG_UNUSED(cb);
+	ARG_UNUSED(user_data);
+}
+
+static inline int net_tcp_send_data(struct net_context *context,
+				    net_context_send_cb_t cb, void *token,
+				    void *user_data)
+{
+	ARG_UNUSED(context);
+	ARG_UNUSED(cb);
+	ARG_UNUSED(token);
+	ARG_UNUSED(user_data);
+
+	return 0;
+}
+
+static inline int net_tcp_queue_data(struct net_context *context,
+				     struct net_pkt *pkt)
+{
+	ARG_UNUSED(context);
+	ARG_UNUSED(pkt);
+	return -EPROTONOSUPPORT;
+}
+
+static inline int net_tcp_send_pkt(struct net_pkt *pkt)
+{
+	ARG_UNUSED(pkt);
+	return 0;
+}
+
+static inline bool net_tcp_ack_received(struct net_context *ctx, u32_t ack)
+{
+	ARG_UNUSED(ctx);
+	ARG_UNUSED(ack);
+	return false;
+}
+
+static inline u16_t net_tcp_get_recv_mss(const struct net_tcp *tcp)
+{
+	ARG_UNUSED(tcp);
+	return 0;
+}
+
+static inline u32_t net_tcp_get_recv_wnd(const struct net_tcp *tcp)
+{
+	ARG_UNUSED(tcp);
+	return 0;
+}
+
+static inline enum net_tcp_state net_tcp_get_state(const struct net_tcp *tcp)
+{
+	ARG_UNUSED(tcp);
+	return NET_TCP_CLOSED;
+}
+
+static inline bool net_tcp_validate_seq(struct net_tcp *tcp,
+					struct net_pkt *pkt)
+{
+	ARG_UNUSED(tcp);
+	ARG_UNUSED(pkt);
+	return false;
+}
 
 static inline u16_t net_tcp_get_chksum(struct net_pkt *pkt,
 				       struct net_buf *frag)
@@ -508,6 +733,88 @@ static inline struct net_tcp_hdr *net_tcp_set_hdr(struct net_pkt *pkt,
 	ARG_UNUSED(hdr);
 	return NULL;
 }
+
+static inline int tcp_hdr_len(struct net_pkt *pkt)
+{
+	ARG_UNUSED(pkt);
+
+	return 0;
+}
+
+static inline int net_tcp_recv(struct net_context *context,
+			       net_context_recv_cb_t cb, void *user_data)
+{
+	ARG_UNUSED(context);
+	ARG_UNUSED(cb);
+	ARG_UNUSED(user_data);
+
+	return -EPROTOTYPE;
+}
+
+static inline int net_tcp_put(struct net_context *context)
+{
+	ARG_UNUSED(context);
+
+	return -EPROTONOSUPPORT;
+}
+
+static inline int net_tcp_listen(struct net_context *context)
+{
+	ARG_UNUSED(context);
+
+	return -EPROTONOSUPPORT;
+}
+
+static inline int net_tcp_update_recv_wnd(struct net_context *context,
+					  s32_t delta)
+{
+	ARG_UNUSED(context);
+	ARG_UNUSED(delta);
+
+	return -EPROTONOSUPPORT;
+}
+
+static inline int net_tcp_get(struct net_context *context)
+{
+	ARG_UNUSED(context);
+
+	return -EPROTONOSUPPORT;
+}
+
+static inline int net_tcp_unref(struct net_context *context)
+{
+	ARG_UNUSED(context);
+
+	return -EPROTONOSUPPORT;
+}
+
+static inline int net_tcp_accept(struct net_context *context,
+				 net_tcp_accept_cb_t cb, void *user_data)
+{
+	ARG_UNUSED(context);
+	ARG_UNUSED(cb);
+	ARG_UNUSED(user_data);
+
+	return -EPROTONOSUPPORT;
+}
+
+static inline int net_tcp_connect(struct net_context *context,
+				  const struct sockaddr *addr,
+				  struct sockaddr *laddr,
+				  u16_t rport, u16_t lport, s32_t timeout,
+				  net_context_connect_cb_t cb, void *user_data)
+{
+	ARG_UNUSED(context);
+	ARG_UNUSED(addr);
+	ARG_UNUSED(laddr);
+	ARG_UNUSED(rport);
+	ARG_UNUSED(lport);
+	ARG_UNUSED(cb);
+	ARG_UNUSED(user_data);
+
+	return -EPROTONOSUPPORT;
+}
+
 #endif
 
 #if defined(CONFIG_NET_TCP)

@@ -1,6 +1,11 @@
 set(CONFIGS_C ${CMAKE_CURRENT_BINARY_DIR}/misc/generated/configs.c)
 
-file(STRINGS ${AUTOCONF_H} CONFIG_LIST REGEX "^#define CONFIG_")
+file(STRINGS
+  ${AUTOCONF_H}
+  CONFIG_LIST
+  REGEX "^#define CONFIG_"
+  ENCODING "UTF-8"
+  )
 foreach (CONFIG ${CONFIG_LIST})
   string(REGEX REPLACE "#define (CONFIG_[A-Z|_|0-9]*) (.*)" "GEN_ABSOLUTE_SYM(\\1, \\2)" CONFIG ${CONFIG})
   string(REGEX REPLACE "\"(.*)\"" "1" CONFIG ${CONFIG})

@@ -18,7 +18,7 @@ struct _kernel _kernel = {0};
 
 /* set the bit corresponding to prio in ready q bitmap */
 #if defined(CONFIG_MULTITHREADING) && !defined(CONFIG_SMP)
-static void _set_ready_q_prio_bit(int prio)
+static void set_ready_q_prio_bit(int prio)
 {
 	int bmap_index = _get_ready_q_prio_bmap_index(prio);
 	u32_t *bmap = &_ready_q.prio_bmap[bmap_index];
@@ -27,7 +27,7 @@ static void _set_ready_q_prio_bit(int prio)
 }
 
 /* clear the bit corresponding to prio in ready q bitmap */
-static void _clear_ready_q_prio_bit(int prio)
+static void clear_ready_q_prio_bit(int prio)
 {
 	int bmap_index = _get_ready_q_prio_bmap_index(prio);
 	u32_t *bmap = &_ready_q.prio_bmap[bmap_index];
@@ -41,7 +41,7 @@ static void _clear_ready_q_prio_bit(int prio)
  * Find the next thread to run when there is no thread in the cache and update
  * the cache.
  */
-static struct k_thread *_get_ready_q_head(void)
+static struct k_thread *get_ready_q_head(void)
 {
 	int prio = _get_highest_ready_prio();
 	int q_index = _get_ready_q_q_index(prio);
@@ -70,12 +70,24 @@ static struct k_thread *_get_ready_q_head(void)
 
 void _add_thread_to_ready_q(struct k_thread *thread)
 {
+	__ASSERT(_is_prio_higher(thread->base.prio, K_LOWEST_THREAD_PRIO) ||
+		 ((thread->base.prio == K_LOWEST_THREAD_PRIO) &&
+		  (thread == _idle_thread)),
+		 "thread %p prio too low (is %d, cannot be lower than %d)",
+		 thread, thread->base.prio,
+		 thread == _idle_thread ? K_LOWEST_THREAD_PRIO :
+					  K_LOWEST_APPLICATION_THREAD_PRIO);
+
+	__ASSERT(!_is_prio_higher(thread->base.prio, K_HIGHEST_THREAD_PRIO),
+		 "thread %p prio too high (id %d, cannot be higher than %d)",
+		 thread, thread->base.prio, K_HIGHEST_THREAD_PRIO);
+
 #ifdef CONFIG_MULTITHREADING
 	int q_index = _get_ready_q_q_index(thread->base.prio);
 	sys_dlist_t *q = &_ready_q.q[q_index];
 
 # ifndef CONFIG_SMP
-	_set_ready_q_prio_bit(thread->base.prio);
+	set_ready_q_prio_bit(thread->base.prio);
 # endif
 	sys_dlist_append(q, &thread->base.k_q_node);
 
@@ -108,12 +120,12 @@ void _remove_thread_from_ready_q(struct k_thread *thread)
 
 	sys_dlist_remove(&thread->base.k_q_node);
 	if (sys_dlist_is_empty(q)) {
-		_clear_ready_q_prio_bit(thread->base.prio);
+		clear_ready_q_prio_bit(thread->base.prio);
 	}
 
 	struct k_thread **cache = &_ready_q.cache;
 
-	*cache = *cache == thread ? _get_ready_q_head() : *cache;
+	*cache = *cache == thread ? get_ready_q_head() : *cache;
 #else
 # if !defined(CONFIG_SMP)
 	_ready_q.prio_bmap[0] = 0;
@@ -177,10 +189,16 @@ s32_t _ms_to_ticks(s32_t ms)
 }
 #endif
 
-/* pend the specified thread: it must *not* be in the ready queue */
-/* must be called with interrupts locked */
+/* Pend the specified thread: it must *not* be in the ready queue.  It
+ * must be either _current or a DUMMY thread (i.e. this is NOT an API
+ * for pending another thread that might be running!).  It must be
+ * called with interrupts locked
+ */
 void _pend_thread(struct k_thread *thread, _wait_q_t *wait_q, s32_t timeout)
 {
+	__ASSERT(thread == _current || _is_thread_dummy(thread),
+		 "Can only pend _current or DUMMY");
+
 #ifdef CONFIG_MULTITHREADING
 	sys_dlist_t *wait_q_list = (sys_dlist_t *)wait_q;
 	struct k_thread *pending;
@@ -217,7 +235,7 @@ void _pend_current_thread(_wait_q_t *wait_q, s32_t timeout)
 
 #if defined(CONFIG_PREEMPT_ENABLED) && defined(CONFIG_KERNEL_DEBUG)
 /* debug aid */
-static void _dump_ready_q(void)
+static void dump_ready_q(void)
 {
 	K_DEBUG("bitmaps: ");
 	for (int bitmap = 0; bitmap < K_NUM_PRIO_BITMAPS; bitmap++) {
@@ -243,7 +261,7 @@ int __must_switch_threads(void)
 		_current->base.prio, _get_highest_ready_prio());
 
 #ifdef CONFIG_KERNEL_DEBUG
-	_dump_ready_q();
+	dump_ready_q();
 #endif  /* CONFIG_KERNEL_DEBUG */
 
 	return _is_prio_higher(_get_highest_ready_prio(), _current->base.prio);
@@ -318,7 +336,7 @@ void _move_thread_to_end_of_prio_q(struct k_thread *thread)
 # ifndef CONFIG_SMP
 	struct k_thread **cache = &_ready_q.cache;
 
-	*cache = *cache == thread ? _get_ready_q_head() : *cache;
+	*cache = *cache == thread ? get_ready_q_head() : *cache;
 # endif
 #endif
 }
@@ -536,5 +554,28 @@ struct k_thread *_get_next_ready_thread(void)
 
 	__ASSERT(0, "No ready thread found for cpu %d\n", mycpu);
 	return NULL;
+}
+#endif
+
+#ifdef CONFIG_USE_SWITCH
+void *_get_next_switch_handle(void *interrupted)
+{
+	if (!_is_preempt(_current) &&
+	    !(_current->base.thread_state & _THREAD_DEAD)) {
+		return interrupted;
+	}
+
+	int key = irq_lock();
+
+	_current->switch_handle = interrupted;
+	_current = _get_next_ready_thread();
+
+	void *ret = _current->switch_handle;
+
+	irq_unlock(key);
+
+	_check_stack_sentinel();
+
+	return ret;
 }
 #endif

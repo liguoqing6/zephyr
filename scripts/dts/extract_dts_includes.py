@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+#
+# Copyright (c) 2017, Linaro Limited
+#
+# SPDX-License-Identifier: Apache-2.0
+#
 
 # vim: ai:ts=4:sw=4
 
@@ -11,98 +16,7 @@ import argparse
 import collections
 
 from devicetree import parse_file
-
-# globals
-compatibles = {}
-phandles = {}
-aliases = {}
-chosen = {}
-reduced = {}
-
-
-def convert_string_to_label(s):
-    # Transmute ,- to _
-    s = s.replace("-", "_")
-    s = s.replace(",", "_")
-    s = s.replace("@", "_")
-    return s
-
-
-def get_all_compatibles(d, name, comp_dict):
-    if 'props' in d:
-        compat = d['props'].get('compatible')
-        enabled = d['props'].get('status')
-
-    if enabled == "disabled":
-        return comp_dict
-
-    if compat is not None:
-        comp_dict[name] = compat
-
-    if name != '/':
-        name += '/'
-
-    if isinstance(d, dict):
-        if d['children']:
-            for k, v in d['children'].items():
-                get_all_compatibles(v, name + k, comp_dict)
-
-    return comp_dict
-
-
-def get_aliases(root):
-    if 'children' in root:
-        if 'aliases' in root['children']:
-            for k, v in root['children']['aliases']['props'].items():
-                aliases[v] = k
-
-    return
-
-
-def get_compat(node):
-
-    compat = None
-
-    if 'props' in node:
-        compat = node['props'].get('compatible')
-
-    if isinstance(compat, list):
-        compat = compat[0]
-
-    return compat
-
-
-def get_chosen(root):
-
-    if 'children' in root:
-        if 'chosen' in root['children']:
-            for k, v in root['children']['chosen']['props'].items():
-                chosen[k] = v
-
-    return
-
-
-def get_phandles(root, name, handles):
-
-    if 'props' in root:
-        handle = root['props'].get('phandle')
-        enabled = root['props'].get('status')
-
-    if enabled == "disabled":
-        return
-
-    if handle is not None:
-        phandles[handle] = name
-
-    if name != '/':
-        name += '/'
-
-    if isinstance(root, dict):
-        if root['children']:
-            for k, v in root['children'].items():
-                get_phandles(v, name + k, handles)
-
-    return
+from extract.globals import *
 
 
 class Loader(yaml.Loader):
@@ -137,56 +51,12 @@ class Loader(yaml.Loader):
         if not os.path.isfile(filepath):
             # we need to look in bindings/* directories
             # take path and back up 1 directory and parse in '/bindings/*'
-            filepath = os.path.dirname(self._root).split('/')
-            filepath = '/'.join(filepath[:-1])
+            filepath = os.path.dirname(os.path.dirname(self._root))
             for root, dirnames, file in os.walk(filepath):
                 if fnmatch.filter(file, filename):
                     filepath = os.path.join(root, filename)
         with open(filepath, 'r') as f:
             return yaml.load(f, Loader)
-
-
-def insert_defs(node_address, defs, new_defs, new_aliases):
-    if node_address in defs:
-        if 'aliases' in defs[node_address]:
-            defs[node_address]['aliases'].update(new_aliases)
-        else:
-            defs[node_address]['aliases'] = new_aliases
-
-        defs[node_address].update(new_defs)
-    else:
-        new_defs['aliases'] = new_aliases
-        defs[node_address] = new_defs
-
-    return
-
-
-def find_node_by_path(nodes, path):
-    d = nodes
-    for k in path[1:].split('/'):
-        d = d['children'][k]
-
-    return d
-
-
-def compress_nodes(nodes, path):
-    if 'props' in nodes:
-        status = nodes['props'].get('status')
-
-        if status == "disabled":
-            return
-
-    if isinstance(nodes, dict):
-        reduced[path] = dict(nodes)
-        reduced[path].pop('children', None)
-        if path != '/':
-            path += '/'
-        if nodes['children']:
-            for k, v in nodes['children'].items():
-                compress_nodes(v, path + k)
-
-    return
-
 
 def find_parent_irq_node(node_address):
     address = ''
@@ -260,8 +130,6 @@ def extract_interrupts(node_address, yaml, y_key, names, defs, def_label):
         index += 1
         insert_defs(node_address, defs, prop_def, prop_alias)
 
-    return
-
 
 def extract_reg_prop(node_address, names, defs, def_label, div, post_label):
 
@@ -326,8 +194,6 @@ def extract_reg_prop(node_address, names, defs, def_label, div, post_label):
         # increment index for definition creation
         index += 1
 
-    return
-
 
 def extract_cells(node_address, yaml, y_key, names, index, prefix, defs,
                   def_label):
@@ -379,8 +245,6 @@ def extract_cells(node_address, yaml, y_key, names, index, prefix, defs,
     if len(props):
         extract_cells(node_address, yaml, y_key, names,
                       index + 1, prefix, defs, def_label)
-
-    return
 
 
 def extract_pinctrl(node_address, yaml, pinconf, names, index, defs,
@@ -456,8 +320,6 @@ def extract_single(node_address, yaml, prop, key, prefix, defs, def_label):
     else:
         defs[node_address] = prop_def
 
-    return
-
 
 def extract_string_prop(node_address, yaml, key, label, defs):
 
@@ -474,18 +336,6 @@ def extract_string_prop(node_address, yaml, key, label, defs):
     else:
         defs[node_address] = prop_def
 
-    return
-
-
-def get_node_label(node_compat, node_address):
-
-    def_label = convert_string_to_label(node_compat.upper())
-    if '@' in node_address:
-        def_label += '_' + node_address.split('@')[-1].upper()
-    else:
-        def_label += convert_string_to_label(node_address.upper())
-
-    return def_label
 
 def extract_property(node_compat, yaml, node_address, y_key, y_val, names,
                      prefix, defs, label_override):
@@ -551,8 +401,6 @@ def extract_property(node_compat, yaml, node_address, y_key, y_val, names,
                        reduced[node_address]['props'][y_key], y_key,
                        prefix, defs, def_label)
 
-    return
-
 
 def extract_node_include_info(reduced, root_node_address, sub_node_address,
                               yaml, defs, structs, y_sub):
@@ -610,7 +458,6 @@ def extract_node_include_info(reduced, root_node_address, sub_node_address,
                             node_compat, yaml, sub_node_address, c, v, names,
                             prefix, defs, label_override)
 
-    return
 
 def dict_merge(dct, merge_dct):
     # from https://gist.github.com/angstwad/bf22d1822c38a92ec0a9
@@ -630,15 +477,20 @@ def dict_merge(dct, merge_dct):
         else:
             dct[k] = merge_dct[k]
 
+
 def yaml_traverse_inherited(node):
     """ Recursive overload procedure inside ``node``
     ``inherits`` section is searched for and used as node base when found.
     Base values are then overloaded by node values
+    Additionally, 'id' key of 'inherited' dict is converted to 'node_type'
     :param node:
     :return: node
     """
 
     if 'inherits' in node.keys():
+        if 'id' in node['inherits'].keys():
+            node['inherits']['node_type'] = node['inherits']['id']
+            node['inherits'].pop('id')
         if 'inherits' in node['inherits'].keys():
             node['inherits'] = yaml_traverse_inherited(node['inherits'])
         dict_merge(node['inherits'], node)
@@ -658,7 +510,7 @@ def yaml_collapse(yaml_list):
     return collapsed
 
 
-def print_key_value(k, v, tabstop):
+def get_key_value(k, v, tabstop):
     label = "#define " + k
 
     # calculate the name's tabs
@@ -667,51 +519,54 @@ def print_key_value(k, v, tabstop):
     else:
         tabs = (len(label) >> 3) + 1
 
-    sys.stdout.write(label)
+    line = label
     for i in range(0, tabstop - tabs + 1):
-        sys.stdout.write('\t')
-    sys.stdout.write(str(v))
-    sys.stdout.write("\n")
+        line += '\t'
+    line += str(v)
+    line += '\n'
 
-    return
+    return line
 
 
-def generate_keyvalue_file(defs, args):
-
+def output_keyvalue_lines(fd, defs):
     node_keys = sorted(defs.keys())
     for node in node_keys:
-        sys.stdout.write('# ' + node.split('/')[-1])
-        sys.stdout.write("\n")
+        fd.write('# ' + node.split('/')[-1])
+        fd.write("\n")
 
         prop_keys = sorted(defs[node].keys())
         for prop in prop_keys:
             if prop == 'aliases':
                 for entry in sorted(defs[node][prop]):
                     a = defs[node][prop].get(entry)
-                    sys.stdout.write("%s=%s\n" % (entry, defs[node].get(a)))
+                    fd.write("%s=%s\n" % (entry, defs[node].get(a)))
             else:
-                sys.stdout.write("%s=%s\n" % (prop, defs[node].get(prop)))
+                fd.write("%s=%s\n" % (prop, defs[node].get(prop)))
 
-        sys.stdout.write("\n")
+        fd.write("\n")
+
+def generate_keyvalue_file(defs, kv_file):
+    with open(kv_file, "w") as fd:
+        output_keyvalue_lines(fd, defs)
 
 
-def generate_include_file(defs, args):
+def output_include_lines(fd, defs, fixups):
     compatible = reduced['/']['props']['compatible'][0]
 
-    sys.stdout.write("/**************************************************\n")
-    sys.stdout.write(" * Generated include file for " + compatible)
-    sys.stdout.write("\n")
-    sys.stdout.write(" *               DO NOT MODIFY\n")
-    sys.stdout.write(" */\n")
-    sys.stdout.write("\n")
-    sys.stdout.write("#ifndef _DEVICE_TREE_BOARD_H" + "\n")
-    sys.stdout.write("#define _DEVICE_TREE_BOARD_H" + "\n")
-    sys.stdout.write("\n")
+    fd.write("/**************************************************\n")
+    fd.write(" * Generated include file for " + compatible)
+    fd.write("\n")
+    fd.write(" *               DO NOT MODIFY\n")
+    fd.write(" */\n")
+    fd.write("\n")
+    fd.write("#ifndef _DEVICE_TREE_BOARD_H" + "\n")
+    fd.write("#define _DEVICE_TREE_BOARD_H" + "\n")
+    fd.write("\n")
 
     node_keys = sorted(defs.keys())
     for node in node_keys:
-        sys.stdout.write('/* ' + node.split('/')[-1] + ' */')
-        sys.stdout.write("\n")
+        fd.write('/* ' + node.split('/')[-1] + ' */')
+        fd.write("\n")
 
         max_dict_key = lambda d: max(len(k) for k in d.keys())
         maxlength = 0
@@ -732,78 +587,45 @@ def generate_include_file(defs, args):
             if prop == 'aliases':
                 for entry in sorted(defs[node][prop]):
                     a = defs[node][prop].get(entry)
-                    print_key_value(entry, a, maxtabstop)
+                    fd.write(get_key_value(entry, a, maxtabstop))
             else:
-                print_key_value(prop, defs[node].get(prop), maxtabstop)
+                fd.write(get_key_value(prop, defs[node].get(prop), maxtabstop))
 
-        sys.stdout.write("\n")
+        fd.write("\n")
 
-    if args.fixup:
-        for fixup in args.fixup:
+    if fixups:
+        for fixup in fixups:
             if os.path.exists(fixup):
-                sys.stdout.write("\n")
-                sys.stdout.write(
+                fd.write("\n")
+                fd.write(
                     "/* Following definitions fixup the generated include */\n")
                 try:
-                    with open(fixup, "r") as fd:
-                        for line in fd.readlines():
-                            sys.stdout.write(line)
-                        sys.stdout.write("\n")
+                    with open(fixup, "r") as fixup_fd:
+                        for line in fixup_fd.readlines():
+                            fd.write(line)
+                        fd.write("\n")
                 except:
                     raise Exception(
                         "Input file " + os.path.abspath(fixup) +
                         " does not exist.")
 
-    sys.stdout.write("#endif\n")
+    fd.write("#endif\n")
 
 
-def lookup_defs(defs, node, key):
-    if node not in defs:
-        return None
-
-    if key in defs[node]['aliases']:
-        key = defs[node]['aliases'][key]
-
-    return defs[node].get(key, None)
+def generate_include_file(defs, inc_file, fixups):
+    with open(inc_file, "w") as fd:
+        output_include_lines(fd, defs, fixups)
 
 
-def parse_arguments():
+def load_and_parse_dts(dts_file):
+    with open(dts_file, "r") as fd:
+        dts = parse_file(fd)
 
-    rdh = argparse.RawDescriptionHelpFormatter
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=rdh)
-
-    parser.add_argument("-d", "--dts", help="DTS file")
-    parser.add_argument("-y", "--yaml", help="YAML file")
-    parser.add_argument("-f", "--fixup", action="append",
-                        help="Fixup file, we allow multiple")
-    parser.add_argument("-k", "--keyvalue", action="store_true",
-                        help="Generate include file for the build system")
-
-    return parser.parse_args()
+    return dts
 
 
-def main():
-    args = parse_arguments()
-    if not args.dts or not args.yaml:
-        print('Usage: %s -d filename.dts -y path_to_yaml' % sys.argv[0])
-        return 1
-
-    try:
-        with open(args.dts, "r") as fd:
-            d = parse_file(fd)
-    except:
-        raise Exception(
-            "Input file " + os.path.abspath(args.dts) + " does not exist.")
-
-    # compress list to nodes w/ paths, add interrupt parent
-    compress_nodes(d['/'], '/')
-
-    # build up useful lists
-    compatibles = get_all_compatibles(d['/'], '/', {})
-    get_phandles(d['/'], '/', {})
-    get_aliases(d['/'])
-    get_chosen(d['/'])
-
+def load_yaml_descriptions(dts, yaml_dir):
+    compatibles = get_all_compatibles(dts['/'], '/', {})
     # find unique set of compatibles across all active nodes
     s = set()
     for k, v in compatibles.items():
@@ -815,7 +637,7 @@ def main():
 
     # scan YAML files and find the ones we are interested in
     yaml_files = []
-    for root, dirnames, filenames in os.walk(args.yaml):
+    for root, dirnames, filenames in os.walk(yaml_dir):
         for filename in fnmatch.filter(filenames, '*.yaml'):
             yaml_files.append(os.path.join(root, filename))
 
@@ -838,8 +660,23 @@ def main():
     # collapse the yaml inherited information
     yaml_list = yaml_collapse(yaml_list)
 
+    return yaml_list
+
+
+def lookup_defs(defs, node, key):
+    if node not in defs:
+        return None
+
+    if key in defs[node]['aliases']:
+        key = defs[node]['aliases'][key]
+
+    return defs[node].get(key, None)
+
+
+def generate_node_definitions(yaml_list):
     defs = {}
     structs = {}
+
     for k, v in reduced.items():
         node_compat = get_compat(v)
         if node_compat is not None and node_compat in yaml_list:
@@ -849,69 +686,93 @@ def main():
     if defs == {}:
         raise Exception("No information parsed from dts file.")
 
-    if 'zephyr,flash' in chosen:
-        node_addr = chosen['zephyr,flash']
-        extract_reg_prop(chosen['zephyr,flash'], None,
-                         defs, "CONFIG_FLASH", 1024, None)
+    for k, v in regs_config.items():
+        if k in chosen:
+            extract_reg_prop(chosen[k], None, defs, v, 1024, None)
 
+    for k, v in name_config.items():
+        if k in chosen:
+            extract_string_prop(chosen[k], None, "label", v, defs)
+
+    # This should go away via future DTDirective class
+    if 'zephyr,flash' in chosen:
+        load_defs = {}
+        node_addr = chosen['zephyr,flash']
         flash_keys = ["label", "write-block-size", "erase-block-size"]
+
         for key in flash_keys:
             if key in reduced[node_addr]['props']:
                 prop = reduced[node_addr]['props'][key]
                 extract_single(node_addr, None, prop, key, None, defs, "FLASH")
+
+        # only compute the load offset if a code partition exists and
+        # it is not the same as the flash base address
+        if 'zephyr,code-partition' in chosen and \
+           reduced[chosen['zephyr,flash']] is not \
+           reduced[chosen['zephyr,code-partition']]:
+            part_defs = {}
+            extract_reg_prop(chosen['zephyr,code-partition'], None,
+                             part_defs, "PARTITION", 1, 'offset')
+            part_base = lookup_defs(part_defs,
+                                    chosen['zephyr,code-partition'],
+                                    'PARTITION_OFFSET')
+            load_defs['CONFIG_FLASH_LOAD_OFFSET'] = part_base
+            load_defs['CONFIG_FLASH_LOAD_SIZE'] = \
+                lookup_defs(part_defs,
+                            chosen['zephyr,code-partition'],
+                            'PARTITION_SIZE')
+        else:
+            load_defs['CONFIG_FLASH_LOAD_OFFSET'] = 0
+            load_defs['CONFIG_FLASH_LOAD_SIZE'] = 0
     else:
-        # We will add address/size of 0 for systems with no flash controller
+        # We will add addr/size of 0 for systems with no flash controller
         # This is what they already do in the Kconfig options anyway
-        defs['dummy-flash'] = {'CONFIG_FLASH_BASE_ADDRESS': 0,
-                               'CONFIG_FLASH_SIZE': 0}
+        defs['dummy-flash'] = {
+            'CONFIG_FLASH_BASE_ADDRESS': 0,
+            'CONFIG_FLASH_SIZE': 0
+        }
 
-    if 'zephyr,sram' in chosen:
-        extract_reg_prop(chosen['zephyr,sram'], None,
-                         defs, "CONFIG_SRAM", 1024, None)
+    if 'zephyr,flash' in chosen:
+        insert_defs(chosen['zephyr,flash'], defs, load_defs, {})
 
-    if 'zephyr,ccm' in chosen:
-        extract_reg_prop(chosen['zephyr,ccm'], None,
-                         defs, "CONFIG_CCM", 1024, None)
+    return defs
 
-    name_dict = {
-            "CONFIG_UART_CONSOLE_ON_DEV_NAME": "zephyr,console",
-            "CONFIG_BT_UART_ON_DEV_NAME": "zephyr,bt-uart",
-            "CONFIG_UART_PIPE_ON_DEV_NAME": "zephyr,uart-pipe",
-            "CONFIG_BT_MONITOR_ON_DEV_NAME": "zephyr,bt-mon-uart",
-            "CONFIG_UART_MCUMGR_ON_DEV_NAME": "zephyr,uart-mcumgr",
-            }
 
-    for k, v in name_dict.items():
-        if v in chosen:
-            extract_string_prop(chosen[v], None, "label", k, defs)
+def parse_arguments():
+    rdh = argparse.RawDescriptionHelpFormatter
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=rdh)
 
-    # only compute the load offset if a code partition exists and it is not the
-    # same as the flash base address
-    load_defs = {}
-    if 'zephyr,code-partition' in chosen and \
-       'zephyr,flash' in chosen and \
-       reduced[chosen['zephyr,flash']] is not \
-            reduced[chosen['zephyr,code-partition']]:
-        part_defs = {}
-        extract_reg_prop(chosen['zephyr,code-partition'], None, part_defs,
-                         "PARTITION", 1, 'offset')
-        part_base = lookup_defs(part_defs, chosen['zephyr,code-partition'],
-                                'PARTITION_OFFSET')
-        load_defs['CONFIG_FLASH_LOAD_OFFSET'] = part_base
-        load_defs['CONFIG_FLASH_LOAD_SIZE'] = \
-            lookup_defs(part_defs, chosen['zephyr,code-partition'],
-                        'PARTITION_SIZE')
-    else:
-        load_defs['CONFIG_FLASH_LOAD_OFFSET'] = 0
-        load_defs['CONFIG_FLASH_LOAD_SIZE'] = 0
+    parser.add_argument("-d", "--dts", nargs=1, required=True, help="DTS file")
+    parser.add_argument("-y", "--yaml", nargs=1, required=True,
+                        help="YAML file")
+    parser.add_argument("-f", "--fixup", nargs='+',
+                        help="Fixup file(s), we allow multiple")
+    parser.add_argument("-i", "--include", nargs=1, required=True,
+                        help="Generate include file for the build system")
+    parser.add_argument("-k", "--keyvalue", nargs=1, required=True,
+                        help="Generate config file for the build system")
+    return parser.parse_args()
 
-    insert_defs(chosen['zephyr,flash'], defs, load_defs, {})
 
-    # generate include file
-    if args.keyvalue:
-        generate_keyvalue_file(defs, args)
-    else:
-        generate_include_file(defs, args)
+def main():
+    args = parse_arguments()
+
+    dts = load_and_parse_dts(args.dts[0])
+
+    # build up useful lists
+    get_reduced(dts['/'], '/')
+    get_phandles(dts['/'], '/', {})
+    get_aliases(dts['/'])
+    get_chosen(dts['/'])
+
+    yaml_list = load_yaml_descriptions(dts, args.yaml[0])
+
+    defs = generate_node_definitions(yaml_list)
+
+     # generate config and include file
+    generate_keyvalue_file(defs, args.keyvalue[0])
+
+    generate_include_file(defs, args.include[0], args.fixup)
 
 
 if __name__ == '__main__':

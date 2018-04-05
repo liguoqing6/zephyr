@@ -14,13 +14,19 @@
 #define PTHREAD_INIT_FLAGS	PTHREAD_CANCEL_ENABLE
 #define PTHREAD_CANCELED	((void *) -1)
 
+#define LOWEST_POSIX_THREAD_PRIORITY 1
+
 static const pthread_attr_t init_pthread_attrs = {
-	.priority = K_LOWEST_APPLICATION_THREAD_PRIO,
+	.priority = LOWEST_POSIX_THREAD_PRIORITY,
 	.stack = NULL,
 	.stacksize = 0,
 	.flags = PTHREAD_INIT_FLAGS,
 	.delayedstart = K_NO_WAIT,
+#if defined(CONFIG_PREEMPT_ENABLED)
 	.schedpolicy = SCHED_RR,
+#else
+	.schedpolicy = SCHED_FIFO,
+#endif
 	.detachstate = PTHREAD_CREATE_JOINABLE,
 	.initialized = true,
 };
@@ -244,7 +250,7 @@ int pthread_cancel(pthread_t pthread)
 int pthread_setschedparam(pthread_t pthread, int policy,
 			  const struct sched_param *param)
 {
-	k_tid_t *thread = (k_tid_t *)pthread;
+	k_tid_t thread = (k_tid_t)pthread;
 	int new_prio;
 
 	if (thread == NULL) {
@@ -261,7 +267,7 @@ int pthread_setschedparam(pthread_t pthread, int policy,
 		return EINVAL;
 	}
 
-	k_thread_priority_set(*thread, new_prio);
+	k_thread_priority_set(thread, new_prio);
 	return 0;
 }
 

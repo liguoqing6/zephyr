@@ -30,6 +30,9 @@ typedef struct pthread_attr_t {
 
 typedef void *pthread_t;
 
+/* Semaphore */
+typedef struct k_sem sem_t;
+
 /* Mutex */
 typedef struct pthread_mutex {
 	struct k_sem *sem;
@@ -62,6 +65,16 @@ typedef u32_t clockid_t;
 #endif /*CONFIG_NEWLIB_LIBC */
 typedef unsigned long timer_t;
 typedef unsigned long useconds_t;
+
+typedef u32_t pthread_rwlockattr_t;
+
+typedef struct pthread_rwlock_obj {
+	struct k_sem rd_sem;
+	struct k_sem wr_sem;
+	struct k_sem reader_active;/* blocks WR till reader has acquired lock */
+	s32_t status;
+	k_tid_t wr_owner;
+} pthread_rwlock_t;
 
 #endif /* CONFIG_PTHREAD_IPC */
 

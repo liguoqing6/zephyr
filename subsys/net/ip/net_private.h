@@ -15,14 +15,20 @@
 #include <net/net_context.h>
 #include <net/net_pkt.h>
 
+#include "connection.h"
+
 extern void net_pkt_init(void);
-extern void net_if_init(struct k_sem *startup_sync);
+extern void net_if_init(void);
 extern void net_if_post_init(void);
 extern void net_if_carrier_down(struct net_if *iface);
 extern void net_context_init(void);
 enum net_verdict net_ipv4_process_pkt(struct net_pkt *pkt);
 enum net_verdict net_ipv6_process_pkt(struct net_pkt *pkt);
 extern void net_ipv6_init(void);
+extern void net_tc_tx_init(void);
+extern void net_tc_rx_init(void);
+extern void net_tc_submit_to_tx_queue(u8_t tc, struct net_pkt *pkt);
+extern void net_tc_submit_to_rx_queue(u8_t tc, struct net_pkt *pkt);
 
 #if defined(CONFIG_NET_IPV6_FRAGMENT)
 int net_ipv6_send_fragmented_pkt(struct net_if *iface, struct net_pkt *pkt,
@@ -89,6 +95,13 @@ struct net_tcp_hdr *net_tcp_header_fits(struct net_pkt *pkt,
 
 	return NULL;
 }
+
+void net_context_set_appdata_values(struct net_pkt *pkt,
+				    enum net_ip_protocol proto);
+
+enum net_verdict net_context_packet_received(struct net_conn *conn,
+					     struct net_pkt *pkt,
+					     void *user_data);
 
 #if defined(CONFIG_NET_IPV4)
 extern u16_t net_calc_chksum_ipv4(struct net_pkt *pkt);

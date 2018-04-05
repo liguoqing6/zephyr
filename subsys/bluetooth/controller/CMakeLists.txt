@@ -41,9 +41,8 @@ zephyr_library_sources_ifdef(
   )
 
 zephyr_library_sources_ifdef(
-  CONFIG_SOC_FAMILY_NRF5
+  CONFIG_SOC_FAMILY_NRF
   hal/nrf5/cntr.c
-  hal/nrf5/rand.c
   hal/nrf5/ecb.c
   hal/nrf5/radio/radio.c
   hal/nrf5/mayfly.c

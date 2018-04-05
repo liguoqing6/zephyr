@@ -13,10 +13,12 @@
 
 #include <ztest.h>
 extern void test_msgq_thread(void);
+extern void test_msgq_thread_overflow(void);
 extern void test_msgq_isr(void);
 extern void test_msgq_put_fail(void);
 extern void test_msgq_get_fail(void);
 extern void test_msgq_purge_when_put(void);
+extern void test_msgq_attrs_get(void);
 
 extern struct k_msgq kmsgq;
 extern struct k_msgq msgq;
@@ -32,9 +34,11 @@ void test_main(void)
 
 	ztest_test_suite(test_msgq_api,
 			 ztest_user_unit_test(test_msgq_thread),
+			 ztest_user_unit_test(test_msgq_thread_overflow),
 			 ztest_unit_test(test_msgq_isr),
 			 ztest_user_unit_test(test_msgq_put_fail),
 			 ztest_user_unit_test(test_msgq_get_fail),
+			 ztest_user_unit_test(test_msgq_attrs_get),
 			 ztest_user_unit_test(test_msgq_purge_when_put));
 	ztest_run_test_suite(test_msgq_api);
 }

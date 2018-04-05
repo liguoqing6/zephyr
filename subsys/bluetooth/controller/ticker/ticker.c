@@ -10,9 +10,9 @@
 
 #include "hal/cntr.h"
 
-#if defined(CONFIG_SOC_FAMILY_NRF5)
+#if defined(CONFIG_SOC_FAMILY_NRF)
 #include "hal/nrf5/ticker.h"
-#endif /* CONFIG_SOC_FAMILY_NRF5 */
+#endif /* CONFIG_SOC_FAMILY_NRF */
 
 #include "ticker.h"
 
@@ -1033,8 +1033,7 @@ static inline void ticker_job_compare_update(struct ticker_instance *instance,
 		cc = instance->ticks_current;
 		ticks_elapsed = ticker_ticks_diff_get(ctr, cc) +
 				COUNTER_CMP_OFFSET_MIN;
-		cc += ((ticks_elapsed < ticks_to_expire) ?
-		       ticks_to_expire : ticks_elapsed);
+		cc += max(ticks_elapsed, ticks_to_expire);
 		cc &= 0x00FFFFFF;
 
 		instance->trigger_set_cb(cc);

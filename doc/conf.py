@@ -124,6 +124,11 @@ exclude_patterns = ['_build']
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
 
+# Additional lexer for Pygments (syntax highlighting)
+from lexer.DtsLexer import DtsLexer
+from sphinx.highlighting import lexers
+lexers['DTS'] = DtsLexer()
+
 # A list of ignored prefixes for module index sorting.
 #modindex_common_prefix = []
 
@@ -171,7 +176,7 @@ if tags.has('release'):
     docs_title = 'Docs / %s' %(version)
 else:
     is_release = False
-    docs_title = 'Docs'
+    docs_title = 'Docs / Latest'
 
 # The name for this set of Sphinx documents.  If None, it defaults to
 # "<project> v<release> documentation".

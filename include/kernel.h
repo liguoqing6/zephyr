@@ -221,11 +221,17 @@ void _k_object_init(void *obj);
 
 #define K_THREAD_ACCESS_GRANT(thread, ...)
 
+/**
+ * @internal
+ */
 static inline void _k_object_init(void *obj)
 {
 	ARG_UNUSED(obj);
 }
 
+/**
+ * @internal
+ */
 static inline void _impl_k_object_access_grant(void *object,
 					       struct k_thread *thread)
 {
@@ -233,6 +239,9 @@ static inline void _impl_k_object_access_grant(void *object,
 	ARG_UNUSED(thread);
 }
 
+/**
+ * @internal
+ */
 static inline void _impl_k_object_access_revoke(void *object,
 						struct k_thread *thread)
 {
@@ -530,9 +539,7 @@ enum execution_context_types {
  */
 extern void k_call_stacks_analyze(void);
 
-/**
- * @} end defgroup profiling_apis
- */
+/** @} */
 
 /**
  * @defgroup thread_apis Thread APIs
@@ -925,9 +932,7 @@ __syscall void k_thread_resume(k_tid_t thread);
  */
 extern void k_sched_time_slice_set(s32_t slice, int prio);
 
-/**
- * @} end defgroup thread_apis
- */
+/** @} */
 
 /**
  * @addtogroup isr_apis
@@ -966,7 +971,7 @@ extern int k_is_in_isr(void);
 __syscall int k_is_preempt_thread(void);
 
 /**
- * @} end addtogroup isr_apis
+ * @}
  */
 
 /**
@@ -1030,7 +1035,7 @@ __syscall void k_thread_custom_data_set(void *value);
 __syscall void *k_thread_custom_data_get(void);
 
 /**
- * @} end addtogroup thread_apis
+ * @}
  */
 
 #include <sys_clock.h>
@@ -1109,7 +1114,7 @@ __syscall void *k_thread_custom_data_get(void);
 #define K_FOREVER (-1)
 
 /**
- * @} end addtogroup clock_apis
+ * @}
  */
 
 /**
@@ -1385,6 +1390,9 @@ static inline s32_t _impl_k_timer_remaining_get(struct k_timer *timer)
  */
 __syscall void k_timer_user_data_set(struct k_timer *timer, void *user_data);
 
+/**
+ * @internal
+ */
 static inline void _impl_k_timer_user_data_set(struct k_timer *timer,
 					       void *user_data)
 {
@@ -1405,9 +1413,7 @@ static inline void *_impl_k_timer_user_data_get(struct k_timer *timer)
 	return timer->user_data;
 }
 
-/**
- * @} end defgroup timer_apis
- */
+/** @} */
 
 /**
  * @addtogroup clock_apis
@@ -1424,7 +1430,6 @@ static inline void *_impl_k_timer_user_data_get(struct k_timer *timer)
  */
 __syscall s64_t k_uptime_get(void);
 
-#ifdef CONFIG_TICKLESS_KERNEL
 /**
  * @brief Enable clock always on in tickless kernel
  *
@@ -1435,6 +1440,7 @@ __syscall s64_t k_uptime_get(void);
  *
  * @retval prev_status Previous status of always on flag
  */
+#ifdef CONFIG_TICKLESS_KERNEL
 static inline int k_enable_sys_clock_always_on(void)
 {
 	int prev_status = _sys_clock_always_on;
@@ -1444,6 +1450,9 @@ static inline int k_enable_sys_clock_always_on(void)
 
 	return prev_status;
 }
+#else
+#define k_enable_sys_clock_always_on() do { } while ((0))
+#endif
 
 /**
  * @brief Disable clock always on in tickless kernel
@@ -1453,12 +1462,12 @@ static inline int k_enable_sys_clock_always_on(void)
  * scheduling. To save power, this routine should be called
  * immediately when clock is not used to track time.
  */
+#ifdef CONFIG_TICKLESS_KERNEL
 static inline void k_disable_sys_clock_always_on(void)
 {
 	_sys_clock_always_on = 0;
 }
 #else
-#define k_enable_sys_clock_always_on() do { } while ((0))
 #define k_disable_sys_clock_always_on() do { } while ((0))
 #endif
 
@@ -1519,7 +1528,7 @@ extern u32_t k_uptime_delta_32(s64_t *reftime);
 #define k_cycle_get_32()	_arch_k_cycle_get_32()
 
 /**
- * @} end addtogroup clock_apis
+ * @}
  */
 
 /**
@@ -1761,9 +1770,7 @@ static inline void *k_queue_peek_tail(struct k_queue *queue)
 		__in_section(_k_queue, static, name) = \
 		_K_QUEUE_INITIALIZER(name)
 
-/**
- * @} end defgroup queue_apis
- */
+/** @} */
 
 /**
  * @cond INTERNAL_HIDDEN
@@ -1785,17 +1792,17 @@ struct k_fifo {
  */
 
 /**
- * @defgroup fifo_apis Fifo APIs
+ * @defgroup fifo_apis FIFO APIs
  * @ingroup kernel_apis
  * @{
  */
 
 /**
- * @brief Initialize a fifo.
+ * @brief Initialize a FIFO queue.
  *
- * This routine initializes a fifo object, prior to its first use.
+ * This routine initializes a FIFO queue, prior to its first use.
  *
- * @param fifo Address of the fifo.
+ * @param fifo Address of the FIFO queue.
  *
  * @return N/A
  */
@@ -1803,7 +1810,7 @@ struct k_fifo {
 	k_queue_init((struct k_queue *) fifo)
 
 /**
- * @brief Cancel waiting on a fifo.
+ * @brief Cancel waiting on a FIFO queue.
  *
  * This routine causes first thread pending on @a fifo, if any, to
  * return from k_fifo_get() call with NULL value (as if timeout
@@ -1811,7 +1818,7 @@ struct k_fifo {
  *
  * @note Can be called by ISRs.
  *
- * @param fifo Address of the fifo.
+ * @param fifo Address of the FIFO queue.
  *
  * @return N/A
  */
@@ -1819,15 +1826,15 @@ struct k_fifo {
 	k_queue_cancel_wait((struct k_queue *) fifo)
 
 /**
- * @brief Add an element to a fifo.
+ * @brief Add an element to a FIFO queue.
  *
- * This routine adds a data item to @a fifo. A fifo data item must be
+ * This routine adds a data item to @a fifo. A FIFO data item must be
  * aligned on a 4-byte boundary, and the first 32 bits of the item are
  * reserved for the kernel's use.
  *
  * @note Can be called by ISRs.
  *
- * @param fifo Address of the fifo.
+ * @param fifo Address of the FIFO.
  * @param data Address of the data item.
  *
  * @return N/A
@@ -1836,7 +1843,7 @@ struct k_fifo {
 	k_queue_append((struct k_queue *) fifo, data)
 
 /**
- * @brief Atomically add a list of elements to a fifo.
+ * @brief Atomically add a list of elements to a FIFO.
  *
  * This routine adds a list of data items to @a fifo in one operation.
  * The data items must be in a singly-linked list, with the first 32 bits
@@ -1845,7 +1852,7 @@ struct k_fifo {
  *
  * @note Can be called by ISRs.
  *
- * @param fifo Address of the fifo.
+ * @param fifo Address of the FIFO queue.
  * @param head Pointer to first node in singly-linked list.
  * @param tail Pointer to last node in singly-linked list.
  *
@@ -1855,7 +1862,7 @@ struct k_fifo {
 	k_queue_append_list((struct k_queue *) fifo, head, tail)
 
 /**
- * @brief Atomically add a list of elements to a fifo.
+ * @brief Atomically add a list of elements to a FIFO queue.
  *
  * This routine adds a list of data items to @a fifo in one operation.
  * The data items must be in a singly-linked list implemented using a
@@ -1864,7 +1871,7 @@ struct k_fifo {
  *
  * @note Can be called by ISRs.
  *
- * @param fifo Address of the fifo.
+ * @param fifo Address of the FIFO queue.
  * @param list Pointer to sys_slist_t object.
  *
  * @return N/A
@@ -1873,14 +1880,14 @@ struct k_fifo {
 	k_queue_merge_slist((struct k_queue *) fifo, list)
 
 /**
- * @brief Get an element from a fifo.
+ * @brief Get an element from a FIFO queue.
  *
  * This routine removes a data item from @a fifo in a "first in, first out"
  * manner. The first 32 bits of the data item are reserved for the kernel's use.
  *
  * @note Can be called by ISRs, but @a timeout must be set to K_NO_WAIT.
  *
- * @param fifo Address of the fifo.
+ * @param fifo Address of the FIFO queue.
  * @param timeout Waiting period to obtain a data item (in milliseconds),
  *                or one of the special values K_NO_WAIT and K_FOREVER.
  *
@@ -1891,68 +1898,66 @@ struct k_fifo {
 	k_queue_get((struct k_queue *) fifo, timeout)
 
 /**
- * @brief Query a fifo to see if it has data available.
+ * @brief Query a FIFO queue to see if it has data available.
  *
  * Note that the data might be already gone by the time this function returns
- * if other threads is also trying to read from the fifo.
+ * if other threads is also trying to read from the FIFO.
  *
  * @note Can be called by ISRs.
  *
- * @param fifo Address of the fifo.
+ * @param fifo Address of the FIFO queue.
  *
- * @return Non-zero if the fifo is empty.
+ * @return Non-zero if the FIFO queue is empty.
  * @return 0 if data is available.
  */
 #define k_fifo_is_empty(fifo) \
 	k_queue_is_empty((struct k_queue *) fifo)
 
 /**
- * @brief Peek element at the head of fifo.
+ * @brief Peek element at the head of a FIFO queue.
  *
- * Return element from the head of fifo without removing it. A usecase
- * for this is if elements of the fifo are themselves containers. Then
+ * Return element from the head of FIFO queue without removing it. A usecase
+ * for this is if elements of the FIFO object are themselves containers. Then
  * on each iteration of processing, a head container will be peeked,
  * and some data processed out of it, and only if the container is empty,
- * it will be completely remove from the fifo.
+ * it will be completely remove from the FIFO queue.
  *
- * @param fifo Address of the fifo.
+ * @param fifo Address of the FIFO queue.
  *
- * @return Head element, or NULL if the fifo is empty.
+ * @return Head element, or NULL if the FIFO queue is empty.
  */
 #define k_fifo_peek_head(fifo) \
 	k_queue_peek_head((struct k_queue *) fifo)
 
 /**
- * @brief Peek element at the tail of fifo.
+ * @brief Peek element at the tail of FIFO queue.
  *
- * Return element from the tail of fifo (without removing it). A usecase
- * for this is if elements of the fifo are themselves containers. Then
- * it may be useful to add more data to the last container in fifo.
+ * Return element from the tail of FIFO queue (without removing it). A usecase
+ * for this is if elements of the FIFO queue are themselves containers. Then
+ * it may be useful to add more data to the last container in a FIFO queue.
  *
- * @param fifo Address of the fifo.
+ * @param fifo Address of the FIFO queue.
  *
- * @return Tail element, or NULL if fifo is empty.
+ * @return Tail element, or NULL if a FIFO queue is empty.
  */
 #define k_fifo_peek_tail(fifo) \
 	k_queue_peek_tail((struct k_queue *) fifo)
 
 /**
- * @brief Statically define and initialize a fifo.
+ * @brief Statically define and initialize a FIFO queue.
  *
- * The fifo can be accessed outside the module where it is defined using:
+ * The FIFO queue can be accessed outside the module where it is defined using:
  *
  * @code extern struct k_fifo <name>; @endcode
  *
- * @param name Name of the fifo.
+ * @param name Name of the FIFO queue.
  */
 #define K_FIFO_DEFINE(name) \
 	struct k_fifo name \
 		__in_section(_k_queue, static, name) = \
 		_K_FIFO_INITIALIZER(name)
 
-/**
- * @} end defgroup fifo_apis
- */
+/** @} */
 
 /**
  * @cond INTERNAL_HIDDEN
@@ -1974,17 +1979,17 @@ struct k_lifo {
  */
 
 /**
- * @defgroup lifo_apis Lifo APIs
+ * @defgroup lifo_apis LIFO APIs
  * @ingroup kernel_apis
  * @{
  */
 
 /**
- * @brief Initialize a lifo.
+ * @brief Initialize a LIFO queue.
  *
- * This routine initializes a lifo object, prior to its first use.
+ * This routine initializes a LIFO queue object, prior to its first use.
  *
- * @param lifo Address of the lifo.
+ * @param lifo Address of the LIFO queue.
  *
  * @return N/A
  */
@@ -1992,15 +1997,15 @@ struct k_lifo {
 	k_queue_init((struct k_queue *) lifo)
 
 /**
- * @brief Add an element to a lifo.
+ * @brief Add an element to a LIFO queue.
  *
- * This routine adds a data item to @a lifo. A lifo data item must be
+ * This routine adds a data item to @a lifo. A LIFO queue data item must be
  * aligned on a 4-byte boundary, and the first 32 bits of the item are
  * reserved for the kernel's use.
  *
  * @note Can be called by ISRs.
  *
- * @param lifo Address of the lifo.
+ * @param lifo Address of the LIFO queue.
  * @param data Address of the data item.
  *
  * @return N/A
@@ -2009,14 +2014,14 @@ struct k_lifo {
 	k_queue_prepend((struct k_queue *) lifo, data)
 
 /**
- * @brief Get an element from a lifo.
+ * @brief Get an element from a LIFO queue.
  *
  * This routine removes a data item from @a lifo in a "last in, first out"
  * manner. The first 32 bits of the data item are reserved for the kernel's use.
  *
  * @note Can be called by ISRs, but @a timeout must be set to K_NO_WAIT.
  *
- * @param lifo Address of the lifo.
+ * @param lifo Address of the LIFO queue.
  * @param timeout Waiting period to obtain a data item (in milliseconds),
  *                or one of the special values K_NO_WAIT and K_FOREVER.
  *
@@ -2027,9 +2032,9 @@ struct k_lifo {
 	k_queue_get((struct k_queue *) lifo, timeout)
 
 /**
- * @brief Statically define and initialize a lifo.
+ * @brief Statically define and initialize a LIFO queue.
  *
- * The lifo can be accessed outside the module where it is defined using:
+ * The LIFO queue can be accessed outside the module where it is defined using:
  *
  * @code extern struct k_lifo <name>; @endcode
  *
@@ -2040,9 +2045,7 @@ struct k_lifo {
 		__in_section(_k_queue, static, name) = \
 		_K_LIFO_INITIALIZER(name)
 
-/**
- * @} end defgroup lifo_apis
- */
+/** @} */
 
 /**
  * @cond INTERNAL_HIDDEN
@@ -2141,9 +2144,7 @@ __syscall int k_stack_pop(struct k_stack *stack, u32_t *data, s32_t timeout);
 		_K_STACK_INITIALIZER(name, _k_stack_buf_##name, \
 				    stack_num_entries)
 
-/**
- * @} end defgroup stack_apis
- */
+/** @} */
 
 struct k_work;
 
@@ -2451,9 +2452,7 @@ static inline s32_t k_delayed_work_remaining_get(struct k_delayed_work *work)
 	return _timeout_remaining_get(&work->timeout);
 }
 
-/**
- * @} end defgroup workqueue_apis
- */
+/** @} */
 
 /**
  * @cond INTERNAL_HIDDEN
@@ -2553,7 +2552,7 @@ __syscall int k_mutex_lock(struct k_mutex *mutex, s32_t timeout);
 __syscall void k_mutex_unlock(struct k_mutex *mutex);
 
 /**
- * @} end defgroup mutex_apis
+ * @}
  */
 
 /**
@@ -2652,6 +2651,9 @@ __syscall void k_sem_give(struct k_sem *sem);
  */
 __syscall void k_sem_reset(struct k_sem *sem);
 
+/**
+ * @internal
+ */
 static inline void _impl_k_sem_reset(struct k_sem *sem)
 {
 	sem->count = 0;
@@ -2668,6 +2670,9 @@ static inline void _impl_k_sem_reset(struct k_sem *sem)
  */
 __syscall unsigned int k_sem_count_get(struct k_sem *sem);
 
+/**
+ * @internal
+ */
 static inline unsigned int _impl_k_sem_count_get(struct k_sem *sem)
 {
 	return sem->count;
@@ -2689,9 +2694,7 @@ static inline unsigned int _impl_k_sem_count_get(struct k_sem *sem)
 		__in_section(_k_sem, static, name) = \
 		_K_SEM_INITIALIZER(name, initial_count, count_limit)
 
-/**
- * @} end defgroup semaphore_apis
- */
+/** @} */
 
 /**
  * @defgroup alert_apis Alert APIs
@@ -2713,9 +2716,7 @@ static inline unsigned int _impl_k_sem_count_get(struct k_sem *sem)
  */
 typedef int (*k_alert_handler_t)(struct k_alert *alert);
 
-/**
- * @} end defgroup alert_apis
- */
+/** @} */
 
 /**
  * @cond INTERNAL_HIDDEN
@@ -2733,6 +2734,9 @@ struct k_alert {
 	_OBJECT_TRACING_NEXT_PTR(k_alert);
 };
 
+/**
+ * @internal
+ */
 extern void _alert_deliver(struct k_work *work);
 
 #define _K_ALERT_INITIALIZER(obj, alert_handler, max_num_pending_alerts) \
@@ -2826,7 +2830,7 @@ __syscall int k_alert_recv(struct k_alert *alert, s32_t timeout);
 __syscall void k_alert_send(struct k_alert *alert);
 
 /**
- * @} end addtogroup alert_apis
+ * @}
  */
 
 /**
@@ -2860,6 +2864,12 @@ struct k_msgq {
 	}
 
 #define K_MSGQ_INITIALIZER DEPRECATED_MACRO _K_MSGQ_INITIALIZER
+
+struct k_msgq_attrs {
+	size_t msg_size;
+	u32_t max_msgs;
+	u32_t used_msgs;
+};
 
 /**
  * INTERNAL_HIDDEN @endcond
@@ -2981,6 +2991,19 @@ __syscall void k_msgq_purge(struct k_msgq *q);
  */
 __syscall u32_t k_msgq_num_free_get(struct k_msgq *q);
 
+/**
+ * @brief Get basic attributes of a message queue.
+ *
+ * This routine fetches basic attributes of message queue into attr argument.
+ *
+ * @param q Address of the message queue.
+ * @param attrs pointer to message queue attribute structure.
+ *
+ * @return N/A
+ */
+__syscall void  k_msgq_get_attrs(struct k_msgq *q, struct k_msgq_attrs *attrs);
+
+
 static inline u32_t _impl_k_msgq_num_free_get(struct k_msgq *q)
 {
 	return q->max_msgs - q->used_msgs;
@@ -3002,9 +3025,7 @@ static inline u32_t _impl_k_msgq_num_used_get(struct k_msgq *q)
 	return q->used_msgs;
 }
 
-/**
- * @} end defgroup msgq_apis
- */
+/** @} */
 
 /**
  * @defgroup mem_pool_apis Memory Pool APIs
@@ -3028,9 +3049,7 @@ struct k_mem_block {
 	struct k_mem_block_id id;
 };
 
-/**
- * @} end defgroup mem_pool_apis
- */
+/** @} */
 
 /**
  * @defgroup mailbox_apis Mailbox APIs
@@ -3224,9 +3243,7 @@ extern int k_mbox_data_block_get(struct k_mbox_msg *rx_msg,
 				 struct k_mem_pool *pool,
 				 struct k_mem_block *block, s32_t timeout);
 
-/**
- * @} end defgroup mailbox_apis
- */
+/** @} */
 
 /**
  * @cond INTERNAL_HIDDEN
@@ -3369,9 +3386,7 @@ __syscall int k_pipe_get(struct k_pipe *pipe, void *data,
 extern void k_pipe_block_put(struct k_pipe *pipe, struct k_mem_block *block,
 			     size_t size, struct k_sem *sem);
 
-/**
- * @} end defgroup pipe_apis
- */
+/** @} */
 
 /**
  * @cond INTERNAL_HIDDEN
@@ -3523,9 +3538,7 @@ static inline u32_t k_mem_slab_num_free_get(struct k_mem_slab *slab)
 	return slab->num_blocks - slab->num_used;
 }
 
-/**
- * @} end defgroup mem_slab_apis
- */
+/** @} */
 
 /**
  * @cond INTERNAL_HIDDEN
@@ -3696,7 +3709,7 @@ extern void k_mem_pool_free(struct k_mem_block *block);
 extern void k_mem_pool_free_id(struct k_mem_block_id *id);
 
 /**
- * @} end addtogroup mem_pool_apis
+ * @}
  */
 
 /**
@@ -3744,9 +3757,7 @@ extern void k_free(void *ptr);
  */
 extern void *k_calloc(size_t nmemb, size_t size);
 
-/**
- * @} end defgroup heap_apis
- */
+/** @} */
 
 /* polling API - PRIVATE */
 
@@ -4005,12 +4016,12 @@ extern void k_poll_signal_init(struct k_poll_signal *signal);
 
 extern int k_poll_signal(struct k_poll_signal *signal, int result);
 
-/* private internal function */
+/**
+ * @internal
+ */
 extern int _handle_obj_poll_events(sys_dlist_t *events, u32_t state);
 
-/**
- * @} end defgroup poll_apis
- */
+/** @} */
 
 /**
  * @brief Make the CPU idle.
@@ -4038,6 +4049,10 @@ extern void k_cpu_idle(void);
  */
 extern void k_cpu_atomic_idle(unsigned int key);
 
+
+/**
+ * @internal
+ */
 extern void _sys_power_save_idle_exit(s32_t ticks);
 
 #ifdef _ARCH_EXCEPT
@@ -4088,12 +4103,24 @@ extern void _sys_power_save_idle_exit(s32_t ticks);
  */
 
 #ifdef CONFIG_MULTITHREADING
+/**
+ * @internal
+ */
 extern void _init_static_threads(void);
 #else
+/**
+ * @internal
+ */
 #define _init_static_threads() do { } while ((0))
 #endif
 
+/**
+ * @internal
+ */
 extern int _is_thread_essential(void);
+/**
+ * @internal
+ */
 extern void _timer_expiration_handler(struct _timeout *t);
 
 /* arch/cpu.h may declare an architecture or platform-specific macro
@@ -4238,11 +4265,11 @@ static inline char *K_THREAD_STACK_BUFFER(k_thread_stack_t *sym)
 #ifdef _ARCH_MEM_PARTITION_ALIGN_CHECK
 #define K_MEM_PARTITION_DEFINE(name, start, size, attr) \
 	_ARCH_MEM_PARTITION_ALIGN_CHECK(start, size); \
-	struct k_mem_partition name = \
+	__kernel struct k_mem_partition name =\
 		MEM_PARTITION_ENTRY((u32_t)start, size, attr)
 #else
 #define K_MEM_PARTITION_DEFINE(name, start, size, attr) \
-	struct k_mem_partition name = \
+	__kernel struct k_mem_partition name =\
 		MEM_PARTITION_ENTRY((u32_t)start, size, attr)
 #endif /* _ARCH_MEM_PARTITION_ALIGN_CHECK */
 
@@ -4258,16 +4285,18 @@ struct k_mem_partition {
 #endif	/* CONFIG_USERSPACE */
 };
 
-/* memory domian */
+/* memory domian
+ * Note: Always declare this structure with __kernel prefix
+ */
 struct k_mem_domain {
-	/* number of partitions in the domain */
-	u32_t num_partitions;
 #ifdef CONFIG_USERSPACE
 	/* partitions in the domain */
 	struct k_mem_partition partitions[CONFIG_MAX_DOMAIN_PARTITIONS];
 #endif	/* CONFIG_USERSPACE */
 	/* domain q */
 	sys_dlist_t mem_domain_q;
+	/* number of partitions in the domain */
+	u8_t num_partitions;
 };
 
 
@@ -4282,7 +4311,7 @@ struct k_mem_domain {
  *              if num_parts is zero.
  */
 
-extern void k_mem_domain_init(struct k_mem_domain *domain, u32_t num_parts,
+extern void k_mem_domain_init(struct k_mem_domain *domain, u8_t num_parts,
 			      struct k_mem_partition *parts[]);
 /**
  * @brief Destroy a memory domain.
@@ -4340,9 +4369,7 @@ extern void k_mem_domain_add_thread(struct k_mem_domain *domain,
 
 extern void k_mem_domain_remove_thread(k_tid_t thread);
 
-/**
- * @} end defgroup mem_domain_apis
- */
+/** @} */
 
 /**
  * @brief Emit a character buffer to the console device

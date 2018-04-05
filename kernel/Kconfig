@@ -170,6 +170,17 @@ config APPLICATION_MEMORY
 	  including the C library in it.
 
 menu "Kernel Debugging and Metrics"
+
+config INIT_STACKS
+	bool
+	prompt "Initialize stack areas"
+	default n
+	help
+	  This option instructs the kernel to initialize stack areas with a
+	  known value (0xaa) before they are first used, so that the high
+	  water mark can be easily determined. This applies to the stack areas
+	  for threads.
+
 config KERNEL_DEBUG
 	bool
 	prompt "Kernel debugging"
@@ -323,7 +334,7 @@ config TIMESLICE_PRIORITY
 
 config POLL
 	bool
-	prompt "async I/O framework"
+	prompt "Async I/O Framework"
 	default n
 	help
 	  Asynchronous notification framework. Enable the k_poll() and
@@ -357,20 +368,17 @@ config NUM_PIPE_ASYNC_MSGS
 	  Setting this option to 0 disables support for asynchronous
 	  pipe messages.
 
-endmenu
-
-menu "Memory Pool Options"
 config HEAP_MEM_POOL_SIZE
 	int
 	prompt "Heap memory pool size (in bytes)"
-	default 0
+	default 0 if !POSIX_MQUEUE
+	default 1024 if POSIX_MQUEUE
 	help
 	  This option specifies the size of the heap memory pool used when
 	  dynamically allocating memory using k_malloc(). Supported values
 	  are: 256, 1024, 4096, and 16384. A size of zero means that no
 	  heap memory pool is defined.
 endmenu
-
 
 config ARCH_HAS_CUSTOM_SWAP_TO_MAIN
 	bool
@@ -431,16 +439,6 @@ config SYS_CLOCK_EXISTS
 	help
 	  This option specifies that the kernel lacks timer support.
 
-config INIT_STACKS
-	bool
-	prompt "Initialize stack areas"
-	default n
-	help
-	  This option instructs the kernel to initialize stack areas with a
-	  known value (0xaa) before they are first used, so that the high
-	  water mark can be easily determined. This applies to the stack areas
-	  for threads.
-
 config XIP
 	bool
 	prompt "Execute in place"
@@ -450,15 +448,6 @@ config XIP
 	  support this option so it must be used with care; you must also
 	  supply a linker command file when building your image. Enabling this
 	  option increases both the code and data footprint of the image.
-
-config RING_BUFFER
-	bool
-	prompt "Enable ring buffers"
-	default n
-	help
-	  Enable usage of ring buffers. This is similar to kernel FIFOs but ring
-	  buffers manage their own buffer memory and can store arbitrary data.
-	  For optimal performance, use buffer sizes that are a power of 2.
 
 menu "Initialization Priorities"
 
@@ -495,6 +484,10 @@ config APPLICATION_INIT_PRIORITY
 	  This priority level is for end-user drivers such as sensors and display
 	  which have no inward dependencies.
 
+
+endmenu
+
+menu "POSIX Layer"
 config PTHREAD_IPC
 	bool
 	prompt "POSIX pthread IPC API"
@@ -513,6 +506,14 @@ config MAX_PTHREAD_COUNT
 	help
 	  Mention maximum number of threads in POSIX compliant application.
 
+config SEM_VALUE_MAX
+	int
+	prompt "Maximum semaphore limit"
+	default 32767
+	range 1 32767
+	help
+	  Maximum semaphore count in POSIX compliant Application.
+
 config MAX_TIMER_COUNT
 	int
 	prompt "Maximum timer count in POSIX application"
@@ -520,6 +521,39 @@ config MAX_TIMER_COUNT
 	range 0 255
 	help
 	  Mention maximum number of timers in POSIX compliant application.
+
+config POSIX_MQUEUE
+	bool
+	prompt "Enable POSIX message queue"
+	default n
+	help
+	  This enabled POSIX message queue related APIs.
+
+if POSIX_MQUEUE
+config	MSG_COUNT_MAX
+	int
+	prompt "Maximum number of messages in message queue"
+	default 16
+	help
+	  Mention maximum number of messages in message queue in POSIX compliant
+	  application.
+
+config	MSG_SIZE_MAX
+	int
+	prompt "Maximum size of a message"
+	default 16
+	help
+	  Mention maximum size of message in bytes.
+
+config	MQUEUE_NAMELEN_MAX
+	int
+	prompt "Maximum size of a name length"
+	default 16
+	range 2 255
+	help
+	  Mention length of message queue name in number of characters.
+
+endif
 endif
 endmenu
 
@@ -556,6 +590,26 @@ config EXECUTE_XOR_WRITE
 
 	  If unsure, say Y.
 
+config STACK_POINTER_RANDOM
+	int
+	prompt "Initial stack pointer randomization bounds"
+	depends on !STACK_GROWS_UP
+	default 0
+	help
+	  This option performs a limited form of Address Space Layout
+	  Randomization by offsetting some random value to a thread's
+	  initial stack pointer upon creation. This hinders some types of
+	  security attacks by making the location of any given stack frame
+	  non-deterministic.
+
+	  This feature can waste up to the specified size in bytes the stack
+	  region, which is carved out of the total size of the stack region.
+	  A reasonable minimum value would be around 100 bytes if this can
+	  be spared.
+
+	  This is currently only implemented for systems whose stack pointers
+	  grow towards lower memory addresses.
+
 endmenu
 
 config MAX_DOMAIN_PARTITIONS
@@ -567,33 +621,36 @@ config MAX_DOMAIN_PARTITIONS
 	help
 	  Configure the maximum number of partitions per memory domain.
 
+menu "SMP Options"
 config USE_SWITCH
 	bool
 	prompt "Use new-style _arch_switch instead of __swap"
 	default n
 	help
-	The _arch_switch() API is a lower level context switching
-	primitive than the original __swap mechanism.  It is required
-	for an SMP-aware scheduler, or if the architecture does not
-	provide __swap.  In uniprocess situations where the
-	architecture provides both, _arch_switch incurs more somewhat
-	overhead and may be slower.
+	  The _arch_switch() API is a lower level context switching
+	  primitive than the original __swap mechanism.  It is required
+	  for an SMP-aware scheduler, or if the architecture does not
+	  provide __swap.  In uniprocess situations where the
+	  architecture provides both, _arch_switch incurs more somewhat
+	  overhead and may be slower.
 
 config SMP
 	bool
 	prompt "Enable symmetric multithreading support"
 	default n
 	help
-	When true, Zephyr will be build with SMP support, allowing
-	more than one CPU to schedule Zephyr tasks at a time.
+	  When true, kernel will be built with SMP support, allowing
+	  more than one CPU to schedule Zephyr tasks at a time.
 
 config MP_NUM_CPUS
 	int
 	prompt "Number of CPUs/cores"
 	default 1
 	help
-	Number of multiprocessing-capable cores available to the
-	multicpu API and SMP features.
+	  Number of multiprocessing-capable cores available to the
+	  multicpu API and SMP features.
+
+endmenu
 
 source "kernel/Kconfig.event_logger"
 

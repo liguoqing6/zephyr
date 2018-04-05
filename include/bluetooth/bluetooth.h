@@ -115,6 +115,12 @@ enum {
 	 *  occur.
 	 */
 	BT_LE_ADV_OPT_ONE_TIME = BIT(1),
+
+	/** Advertise using the identity address as the own address.
+	 *  @warning This will compromise the privacy of the device, so care
+	 *           must be taken when using this option.
+	 */
+	BT_LE_ADV_OPT_USE_IDENTITY = BIT(2),
 };
 
 /** LE Advertising Parameters. */
@@ -127,12 +133,6 @@ struct bt_le_adv_param {
 
 	/** Maximum Advertising Interval (N * 0.625) */
 	u16_t interval_max;
-
-	/** Optional predefined (random) own address. Currently
-	 *  the only permitted use of this is for NRPA with
-	 *  non-connectable advertising.
-	 */
-	const bt_addr_t *own_addr;
 };
 
 /** Helper to declare advertising parameters inline

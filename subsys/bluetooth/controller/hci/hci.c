@@ -18,6 +18,7 @@
 #include <bluetooth/hci_vs.h>
 #include <bluetooth/buf.h>
 #include <bluetooth/bluetooth.h>
+#include <drivers/bluetooth/hci_driver.h>
 #include <misc/byteorder.h>
 #include <misc/util.h>
 
@@ -73,6 +74,11 @@ static u32_t conn_count;
 static u64_t event_mask = DEFAULT_EVENT_MASK;
 static u64_t event_mask_page_2 = DEFAULT_EVENT_MASK_PAGE_2;
 static u64_t le_event_mask = DEFAULT_LE_EVENT_MASK;
+
+#if defined(CONFIG_BT_CONN)
+static void le_conn_complete(u8_t status, struct radio_le_conn_cmplt *radio_cc,
+			     u16_t handle, struct net_buf *buf);
+#endif /* CONFIG_BT_CONN */
 
 static void evt_create(struct net_buf *buf, u8_t evt, u8_t len)
 {
@@ -1005,12 +1011,29 @@ static void le_create_connection(struct net_buf *buf, struct net_buf **evt)
 static void le_create_conn_cancel(struct net_buf *buf, struct net_buf **evt)
 {
 	struct bt_hci_evt_cc_status *ccst;
+	struct net_buf *cc;
+	u8_t cmd_status;
 	u32_t status;
 
 	status = ll_connect_disable();
+	cmd_status = status ? BT_HCI_ERR_CMD_DISALLOWED : 0x00;
+
+	if (!cmd_status) {
+		*evt = bt_buf_get_rx(BT_BUF_EVT, K_FOREVER);
+		le_conn_complete(BT_HCI_ERR_UNKNOWN_CONN_ID, NULL, 0x0000,
+				 *evt);
+		if ((*evt)->len) {
+			ccst = cmd_complete(&cc, sizeof(*ccst));
+			ccst->status = cmd_status;
+			bt_recv_prio(cc);
+			return;
+		} else {
+			net_buf_unref(*evt);
+		}
+	}
 
 	ccst = cmd_complete(evt, sizeof(*ccst));
-	ccst->status = (!status) ? 0x00 : BT_HCI_ERR_CMD_DISALLOWED;
+	ccst->status = cmd_status;
 }
 
 static void le_set_host_chan_classif(struct net_buf *buf, struct net_buf **evt)
@@ -1810,7 +1833,7 @@ static void vs_read_static_addrs(struct net_buf *buf, struct net_buf **evt)
 {
 	struct bt_hci_rp_vs_read_static_addrs *rp;
 
-#if defined(CONFIG_SOC_FAMILY_NRF5)
+#if defined(CONFIG_SOC_FAMILY_NRF)
 	/* Read address from nRF5-specific storage
 	 * Non-initialized FICR values default to 0xFF, skip if no address
 	 * present. Also if a public address lives in FICR, do not use in this
@@ -1839,7 +1862,7 @@ static void vs_read_static_addrs(struct net_buf *buf, struct net_buf **evt)
 
 		return;
 	}
-#endif /* CONFIG_SOC_FAMILY_NRF5 */
+#endif /* CONFIG_SOC_FAMILY_NRF */
 
 	rp = cmd_complete(evt, sizeof(*rp));
 	rp->status = 0x00;
@@ -1854,7 +1877,7 @@ static void vs_read_key_hierarchy_roots(struct net_buf *buf,
 	rp = cmd_complete(evt, sizeof(*rp));
 	rp->status = 0x00;
 
-#if defined(CONFIG_SOC_FAMILY_NRF5)
+#if defined(CONFIG_SOC_FAMILY_NRF)
 	/* Fill in IR if present */
 	if ((NRF_FICR->IR[0] != UINT32_MAX) &&
 	    (NRF_FICR->IR[1] != UINT32_MAX) &&
@@ -1889,7 +1912,7 @@ static void vs_read_key_hierarchy_roots(struct net_buf *buf,
 	memset(rp->ir, 0x00, sizeof(rp->ir));
 	/* Mark ER as invalid */
 	memset(rp->er, 0x00, sizeof(rp->er));
-#endif /* CONFIG_SOC_FAMILY_NRF5 */
+#endif /* CONFIG_SOC_FAMILY_NRF */
 }
 
 #endif /* CONFIG_BT_HCI_VS_EXT */
@@ -2362,19 +2385,20 @@ static void le_scan_req_received(struct pdu_data *pdu_data, u8_t *b,
 #endif /* CONFIG_BT_CTLR_SCAN_REQ_NOTIFY */
 
 #if defined(CONFIG_BT_CONN)
-static void le_conn_complete(struct pdu_data *pdu_data, u16_t handle,
-			     struct net_buf *buf)
+static void le_conn_complete(u8_t status, struct radio_le_conn_cmplt *radio_cc,
+			     u16_t handle, struct net_buf *buf)
 {
 	struct bt_hci_evt_le_conn_complete *lecc;
-	struct radio_le_conn_cmplt *radio_cc;
-
-	radio_cc = (void *)pdu_data->lldata;
 
 #if defined(CONFIG_BT_CTLR_PRIVACY)
+	if (!status) {
 	/* Update current RPA */
-	ll_rl_crpa_set(radio_cc->peer_addr_type, &radio_cc->peer_addr[0],
-		       0xff, &radio_cc->peer_rpa[0]);
+		ll_rl_crpa_set(radio_cc->peer_addr_type,
+			       &radio_cc->peer_addr[0], 0xff,
+			       &radio_cc->peer_rpa[0]);
+	}
 #endif
+
 	if (!(event_mask & BT_EVT_MASK_LE_META_EVENT) ||
 	    (!(le_event_mask & BT_EVT_MASK_LE_CONN_COMPLETE) &&
 #if defined(CONFIG_BT_CTLR_PRIVACY)
@@ -2385,7 +2409,7 @@ static void le_conn_complete(struct pdu_data *pdu_data, u16_t handle,
 		return;
 	}
 
-	if (!radio_cc->status) {
+	if (!status) {
 		conn_count++;
 	}
 
@@ -2396,7 +2420,13 @@ static void le_conn_complete(struct pdu_data *pdu_data, u16_t handle,
 		leecc = meta_evt(buf, BT_HCI_EVT_LE_ENH_CONN_COMPLETE,
 				 sizeof(*leecc));
 
-		leecc->status = radio_cc->status;
+		if (status) {
+			memset(leecc, 0x00, sizeof(*leecc));
+			leecc->status = status;
+			return;
+		}
+
+		leecc->status = 0x00;
 		leecc->handle = sys_cpu_to_le16(handle);
 		leecc->role = radio_cc->role;
 
@@ -2428,7 +2458,13 @@ static void le_conn_complete(struct pdu_data *pdu_data, u16_t handle,
 
 	lecc = meta_evt(buf, BT_HCI_EVT_LE_CONN_COMPLETE, sizeof(*lecc));
 
-	lecc->status = radio_cc->status;
+	if (status) {
+		memset(lecc, 0x00, sizeof(*lecc));
+		lecc->status = status;
+		return;
+	}
+
+	lecc->status = 0x00;
 	lecc->handle = sys_cpu_to_le16(handle);
 	lecc->role = radio_cc->role;
 	lecc->peer_addr.type = radio_cc->peer_addr_type;
@@ -2602,7 +2638,12 @@ static void encode_control(struct radio_pdu_node_rx *node_rx,
 
 #if defined(CONFIG_BT_CONN)
 	case NODE_RX_TYPE_CONNECTION:
-		le_conn_complete(pdu_data, handle, buf);
+		{
+			struct radio_le_conn_cmplt *cc;
+
+			cc = (void *)pdu_data->lldata;
+			le_conn_complete(cc->status, cc, handle, buf);
+		}
 		break;
 
 	case NODE_RX_TYPE_TERMINATE:

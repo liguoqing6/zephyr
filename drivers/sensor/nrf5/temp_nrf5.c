@@ -13,7 +13,7 @@
 #include <logging/sys_log.h>
 
 #include "nrf.h"
-#include "nrf5_common.h"
+#include "nrf_common.h"
 
 
 /* The nRF5 temperature device returns measurements in 0.25C
@@ -36,7 +36,7 @@ static int temp_nrf5_sample_fetch(struct device *dev, enum sensor_channel chan)
 
 	SYS_LOG_DBG("");
 
-	if (chan != SENSOR_CHAN_ALL && chan != SENSOR_CHAN_TEMP) {
+	if (chan != SENSOR_CHAN_ALL && chan != SENSOR_CHAN_DIE_TEMP) {
 		return -ENOTSUP;
 	}
 
@@ -69,7 +69,7 @@ static int temp_nrf5_channel_get(struct device *dev,
 
 	SYS_LOG_DBG("");
 
-	if (chan != SENSOR_CHAN_TEMP) {
+	if (chan != SENSOR_CHAN_DIE_TEMP) {
 		return -ENOTSUP;
 	}
 

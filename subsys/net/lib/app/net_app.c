@@ -308,9 +308,11 @@ int _net_app_set_local_addr(struct sockaddr *addr, const char *myaddr,
 #if defined(CONFIG_NET_IPV4)
 		struct net_if *iface = net_if_get_default();
 
+		NET_ASSERT(iface->config.ip.ipv4);
+
 		/* For IPv4 we take the first address in the interface */
 		net_ipaddr_copy(&net_sin(addr)->sin_addr,
-				&iface->ipv4.unicast[0].address.in_addr);
+			   &iface->config.ip.ipv4->unicast[0].address.in_addr);
 #else
 		return -EPFNOSUPPORT;
 #endif
@@ -2121,7 +2123,18 @@ reset:
 				u16_t pos;
 
 				frag = net_frag_get_pos(pkt, hdr_len, &pos);
-				NET_ASSERT(frag);
+				if (!frag) {
+					/* FIXME: if pos is 0 here, hdr_len
+					 * bytes were successfully skipped.
+					 * Is closing the connection here the
+					 * right thing?
+					 */
+					NET_ERR("could not skip %zu bytes",
+						hdr_len);
+					net_pkt_unref(pkt);
+					ret = -EINVAL;
+					goto close;
+				}
 
 				net_pkt_set_appdata(pkt, frag->data + pos);
 			} else {

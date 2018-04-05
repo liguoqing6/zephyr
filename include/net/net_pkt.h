@@ -47,6 +47,9 @@ struct net_pkt {
 	/** FIFO uses first 4 bytes itself, reserve space */
 	int _reserved;
 
+	/** Internal variable that is used when packet is sent */
+	struct k_work work;
+
 	/** Slab pointer from where it belongs to */
 	struct k_mem_slab *slab;
 
@@ -77,6 +80,13 @@ struct net_pkt {
 	struct net_linkaddr lladdr_src;
 	struct net_linkaddr lladdr_dst;
 
+#if defined(CONFIG_NET_STATISTICS)
+	/* If statistics is enabled, then speed up length calculation by
+	 * doing it only once. This value is updated in net_if_queue_tx()
+	 * when packet is about to be sent.
+	 */
+	u16_t total_pkt_len;
+#endif
 	u16_t data_len;         /* amount of payload data that can be added */
 
 	u16_t appdatalen;
@@ -132,6 +142,13 @@ struct net_pkt {
 	u8_t ieee802154_rssi; /* Received Signal Strength Indication */
 	u8_t ieee802154_lqi;  /* Link Quality Indicator */
 #endif
+
+#if NET_TC_COUNT > 1
+	/** Network packet priority, can be left out in which case packet
+	 * is not prioritised.
+	 */
+	u8_t priority;
+#endif
 	/* @endcond */
 
 	/** Reference counter */
@@ -140,6 +157,10 @@ struct net_pkt {
 
 /** @cond ignore */
 
+static inline struct k_work *net_pkt_work(struct net_pkt *pkt)
+{
+	return &pkt->work;
+}
 
 /* The interface real ll address */
 static inline struct net_linkaddr *net_pkt_ll_if(struct net_pkt *pkt)
@@ -181,8 +202,8 @@ static inline void net_pkt_set_iface(struct net_pkt *pkt, struct net_if *iface)
 	 * the network address that is stored in pkt. This is done here so
 	 * that the address type is properly set and is not forgotten.
 	 */
-	pkt->lladdr_src.type = iface->link_addr.type;
-	pkt->lladdr_dst.type = iface->link_addr.type;
+	pkt->lladdr_src.type = net_if_get_link_addr(iface)->type;
+	pkt->lladdr_dst.type = net_if_get_link_addr(iface)->type;
 }
 
 static inline struct net_if *net_pkt_orig_iface(struct net_pkt *pkt)
@@ -377,6 +398,31 @@ static inline void net_pkt_set_ipv6_fragment_id(struct net_pkt *pkt,
 #define net_pkt_set_ipv6_ext_len(...)
 #endif /* CONFIG_NET_IPV6 */
 
+#if NET_TC_COUNT > 1
+static inline u8_t net_pkt_priority(struct net_pkt *pkt)
+{
+	return pkt->priority;
+}
+
+static inline void net_pkt_set_priority(struct net_pkt *pkt,
+					u8_t priority)
+{
+	pkt->priority = priority;
+}
+#else
+static inline u8_t net_pkt_priority(struct net_pkt *pkt)
+{
+	return 0;
+}
+
+static inline void net_pkt_set_priority(struct net_pkt *pkt,
+					u8_t priority)
+{
+	ARG_UNUSED(pkt);
+	ARG_UNUSED(priority);
+}
+#endif
+
 static inline size_t net_pkt_get_len(struct net_pkt *pkt)
 {
 	return net_buf_frags_len(pkt->frags);
@@ -541,8 +587,8 @@ struct net_buf *net_pkt_get_reserve_data_debug(struct net_buf_pool *pool,
 					       int line);
 
 #define net_pkt_get_reserve_data(pool, reserve_head, timeout)		\
-	net_pkt_get_reserve_debug(pool, reserve_head, timeout,		\
-				  __func__, __LINE__)
+	net_pkt_get_reserve_data_debug(pool, reserve_head, timeout,	\
+				       __func__, __LINE__)
 
 struct net_pkt *net_pkt_get_rx_debug(struct net_context *context,
 				     s32_t timeout,

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <generated_dts_board.h>
 #include <soc.h>
 #include <arch/arc/v2/mpu/arc_mpu.h>
 #include <linker/linker-defs.h>
@@ -14,7 +15,7 @@ static struct arc_mpu_region mpu_regions[] = {
 	/* Region ICCM */
 	MPU_REGION_ENTRY("IMAGE ROM",
 			 (u32_t) _image_rom_start,
-			 (u32_t) _image_rom_end,
+			 (u32_t) _image_rom_size,
 			 REGION_FLASH_ATTR),
 	MPU_REGION_ENTRY("APP MEMORY",
 			 (u32_t) __app_ram_start,
@@ -55,7 +56,7 @@ static struct arc_mpu_region mpu_regions[] = {
 			 64 * 1024,
 			 AUX_MPU_RDP_KW | AUX_MPU_RDP_KR),
 };
-#else
+#else /* CONFIG_USERSPACE */
 static struct arc_mpu_region mpu_regions[] = {
 #if CONFIG_ICCM_SIZE > 0
 	/* Region ICCM */

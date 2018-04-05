@@ -74,6 +74,9 @@ void _FaultDump(const NANO_ESF *esf, int fault)
 
 	PR_EXC("MMFSR: 0x%x, BFSR: 0x%x, UFSR: 0x%x\n",
 	       SCB_MMFSR, SCB_BFSR, SCB_MMFSR);
+#if defined(CONFIG_ARM_SECURE_FIRMWARE)
+	PR_EXC("SFSR: 0x%x\n", SAU->SFSR);
+#endif /* CONFIG_ARM_SECURE_FIRMWARE */
 
 	/* In a fault handler, to determine the true faulting address:
 	 * 1. Read and save the MMFAR or BFAR value.
@@ -85,6 +88,9 @@ void _FaultDump(const NANO_ESF *esf, int fault)
 	 */
 	STORE_xFAR(mmfar, SCB->MMFAR);
 	STORE_xFAR(bfar, SCB->BFAR);
+#if defined(CONFIG_ARM_SECURE_FIRMWARE)
+	STORE_xFAR(sfar, SAU->SFAR);
+#endif /* CONFIG_ARM_SECURE_FIRMWARE */
 
 	if (SCB->CFSR & CFSR_MMARVALID_Msk) {
 		PR_EXC("MMFAR: 0x%x\n", mmfar);
@@ -100,6 +106,18 @@ void _FaultDump(const NANO_ESF *esf, int fault)
 			SCB->CFSR &= ~CFSR_BFARVALID_Msk;
 		}
 	}
+#if defined(CONFIG_ARM_SECURE_FIRMWARE)
+	if (SAU->SFSR & SAU_SFSR_SFARVALID_Msk) {
+		PR_EXC("SFAR: 0x%x\n", sfar);
+		if (escalation) {
+			/* clear SFSR_SFAR[VALID] to reset */
+			SAU->SFSR &= ~SAU_SFSR_SFARVALID_Msk;
+		}
+	}
+
+	/* clear SFSR sticky bits */
+	SAU->SFSR |= 0xFF;
+#endif /* CONFIG_ARM_SECURE_FIRMWARE */
 
 	/* clear USFR sticky bits */
 	SCB->CFSR |= SCB_CFSR_USGFAULTSR_Msk;
@@ -143,11 +161,11 @@ static void _MpuFault(const NANO_ESF *esf, int fromHardFault)
 
 	_FaultThreadShow(esf);
 
-	if (SCB->CFSR & CFSR_MSTKERR_Msk) {
+	if (SCB->CFSR & SCB_CFSR_MSTKERR_Msk) {
 		PR_EXC("  Stacking error\n");
-	} else if (SCB->CFSR & CFSR_MUNSTKERR_Msk) {
+	} else if (SCB->CFSR & SCB_CFSR_MUNSTKERR_Msk) {
 		PR_EXC("  Unstacking error\n");
-	} else if (SCB->CFSR & CFSR_DACCVIOL_Msk) {
+	} else if (SCB->CFSR & SCB_CFSR_DACCVIOL_Msk) {
 		PR_EXC("  Data Access Violation\n");
 		/* In a fault handler, to determine the true faulting address:
 		 * 1. Read and save the MMFAR value.
@@ -159,16 +177,22 @@ static void _MpuFault(const NANO_ESF *esf, int fromHardFault)
 		 */
 		STORE_xFAR(mmfar, SCB->MMFAR);
 
-		if (SCB->CFSR & CFSR_MMARVALID_Msk) {
+		if (SCB->CFSR & SCB_CFSR_MMARVALID_Msk) {
 			PR_EXC("  Address: 0x%x\n", mmfar);
 			if (fromHardFault) {
-				/* clear MMAR[VALID] to reset */
-				SCB->CFSR &= ~CFSR_MMARVALID_Msk;
+				/* clear SCB_MMAR[VALID] to reset */
+				SCB->CFSR &= ~SCB_CFSR_MMARVALID_Msk;
 			}
 		}
-	} else if (SCB->CFSR & CFSR_IACCVIOL_Msk) {
+	} else if (SCB->CFSR & SCB_CFSR_IACCVIOL_Msk) {
 		PR_EXC("  Instruction Access Violation\n");
+#if !defined(CONFIG_ARMV7_M_ARMV8_M_FP)
 	}
+#else
+	} else if (SCB->CFSR & SCB_CFSR_MLSPERR_Msk) {
+		PR_EXC("  Floating-point lazy state preservation error\n");
+	}
+#endif /* !defined(CONFIG_ARMV7_M_ARMV8_M_FP) */
 }
 
 /**
@@ -185,11 +209,11 @@ static void _BusFault(const NANO_ESF *esf, int fromHardFault)
 
 	_FaultThreadShow(esf);
 
-	if (SCB->CFSR & CFSR_STKERR_Msk) {
+	if (SCB->CFSR & SCB_CFSR_STKERR_Msk) {
 		PR_EXC("  Stacking error\n");
-	} else if (SCB->CFSR & CFSR_UNSTKERR_Msk) {
+	} else if (SCB->CFSR & SCB_CFSR_UNSTKERR_Msk) {
 		PR_EXC("  Unstacking error\n");
-	} else if (SCB->CFSR & CFSR_PRECISERR_Msk) {
+	} else if (SCB->CFSR & SCB_CFSR_PRECISERR_Msk) {
 		PR_EXC("  Precise data bus error\n");
 		/* In a fault handler, to determine the true faulting address:
 		 * 1. Read and save the BFAR value.
@@ -201,22 +225,28 @@ static void _BusFault(const NANO_ESF *esf, int fromHardFault)
 		 */
 		STORE_xFAR(bfar, SCB->BFAR);
 
-		if (SCB->CFSR & CFSR_BFARVALID_Msk) {
+		if (SCB->CFSR & SCB_CFSR_BFARVALID_Msk) {
 			PR_EXC("  Address: 0x%x\n", bfar);
 			if (fromHardFault) {
-				/* clear CFSR_BFAR[VALID] to reset */
-				SCB->CFSR &= ~CFSR_BFARVALID_Msk;
+				/* clear SCB_CFSR_BFAR[VALID] to reset */
+				SCB->CFSR &= ~SCB_CFSR_BFARVALID_Msk;
 			}
 		}
 		/* it's possible to have both a precise and imprecise fault */
-		if (SCB->CFSR & CFSR_IMPRECISERR_Msk) {
+		if (SCB->CFSR & SCB_CFSR_IMPRECISERR_Msk) {
 			PR_EXC("  Imprecise data bus error\n");
 		}
-	} else if (SCB->CFSR & CFSR_IMPRECISERR_Msk) {
+	} else if (SCB->CFSR & SCB_CFSR_IMPRECISERR_Msk) {
 		PR_EXC("  Imprecise data bus error\n");
-	} else if (SCB->CFSR & CFSR_IBUSERR_Msk) {
+	} else if (SCB->CFSR & SCB_CFSR_IBUSERR_Msk) {
 		PR_EXC("  Instruction bus error\n");
+#if !defined(CONFIG_ARMV7_M_ARMV8_M_FP)
 	}
+#else
+	} else if (SCB->CFSR & SCB_CFSR_LSPERR_Msk) {
+		PR_EXC("  Floating-point lazy state preservation error\n");
+	}
+#endif /* !defined(CONFIG_ARMV7_M_ARMV8_M_FP) */
 }
 
 /**
@@ -234,28 +264,88 @@ static void _UsageFault(const NANO_ESF *esf)
 	_FaultThreadShow(esf);
 
 	/* bits are sticky: they stack and must be reset */
-	if (SCB->CFSR & CFSR_DIVBYZERO_Msk) {
+	if (SCB->CFSR & SCB_CFSR_DIVBYZERO_Msk) {
 		PR_EXC("  Division by zero\n");
 	}
-	if (SCB->CFSR & CFSR_UNALIGNED_Msk) {
+	if (SCB->CFSR & SCB_CFSR_UNALIGNED_Msk) {
 		PR_EXC("  Unaligned memory access\n");
 	}
-	if (SCB->CFSR & CFSR_NOCP_Msk) {
+#if defined(CONFIG_ARMV8_M_MAINLINE)
+	if (SCB->CFSR & SCB_CFSR_STKOF_Msk) {
+		PR_EXC("  Stack overflow\n");
+	}
+#endif /* CONFIG_ARMV8_M_MAINLINE */
+	if (SCB->CFSR & SCB_CFSR_NOCP_Msk) {
 		PR_EXC("  No coprocessor instructions\n");
 	}
-	if (SCB->CFSR & CFSR_INVPC_Msk) {
+	if (SCB->CFSR & SCB_CFSR_INVPC_Msk) {
 		PR_EXC("  Illegal load of EXC_RETURN into PC\n");
 	}
-	if (SCB->CFSR & CFSR_INVSTATE_Msk) {
+	if (SCB->CFSR & SCB_CFSR_INVSTATE_Msk) {
 		PR_EXC("  Illegal use of the EPSR\n");
 	}
-	if (SCB->CFSR & CFSR_UNDEFINSTR_Msk) {
+	if (SCB->CFSR & SCB_CFSR_UNDEFINSTR_Msk) {
 		PR_EXC("  Attempt to execute undefined instruction\n");
 	}
 
 	/* clear USFR sticky bits */
 	SCB->CFSR |= SCB_CFSR_USGFAULTSR_Msk;
 }
+
+#if defined(CONFIG_ARM_SECURE_FIRMWARE)
+/**
+ *
+ * @brief Dump secure fault information
+ *
+ * See _FaultDump() for example.
+ *
+ * @return N/A
+ */
+static void _SecureFault(const NANO_ESF *esf)
+{
+	PR_EXC("***** SECURE FAULT *****\n");
+
+	_FaultThreadShow(esf);
+
+	STORE_xFAR(sfar, SAU->SFAR);
+	if (SAU->SFSR & SAU_SFSR_SFARVALID_Msk) {
+		PR_EXC("  Address: 0x%x\n", sfar);
+	}
+
+	/* bits are sticky: they stack and must be reset */
+	if (SAU->SFSR & SAU_SFSR_INVEP_Msk) {
+		PR_EXC("  Invalid entry point\n");
+	} else if (SAU->SFSR & SAU_SFSR_INVIS_Msk) {
+		PR_EXC("  Invalid integrity signature\n");
+	} else if (SAU->SFSR & SAU_SFSR_INVER_Msk) {
+		PR_EXC("  Invalid exception return\n");
+	} else if (SAU->SFSR & SAU_SFSR_AUVIOL_Msk) {
+		PR_EXC("  Attribution unit violation\n");
+	} else if (SAU->SFSR & SAU_SFSR_INVTRAN_Msk) {
+		PR_EXC("  Invalid transition\n");
+	} else if (SAU->SFSR & SAU_SFSR_LSPERR_Msk) {
+		PR_EXC("  Lazy state preservation\n");
+	} else if (SAU->SFSR & SAU_SFSR_LSERR_Msk) {
+		PR_EXC("  Lazy state error\n");
+	}
+
+	/* SecureFault is never banked between security states. Therefore,
+	 * we may wish to, additionally, inspect the state of the Non-Secure
+	 * execution (program counter), to gain more information regarding
+	 * the root cause of the fault.
+	 */
+	NANO_ESF *esf_ns;
+	if (SCB_NS->ICSR & SCB_ICSR_RETTOBASE_Msk) {
+		esf_ns = (NANO_ESF *)__TZ_get_PSP_NS();
+	} else {
+		esf_ns = (NANO_ESF *)__TZ_get_MSP_NS();
+	}
+	PR_EXC("  NS instruction address:  0x%x\n", esf_ns->pc);
+
+	/* clear SFSR sticky bits */
+	SAU->SFSR |= 0xFF;
+}
+#endif /* defined(CONFIG_ARM_SECURE_FIRMWARE) */
 
 /**
  *
@@ -301,6 +391,10 @@ static void _HardFault(const NANO_ESF *esf)
 			_BusFault(esf, 1);
 		} else if (SCB_UFSR) {
 			_UsageFault(esf);
+#if defined(CONFIG_ARM_SECURE_FIRMWARE)
+		} else if (SAU->SFSR) {
+			_SecureFault(esf);
+#endif /* CONFIG_ARM_SECURE_FIRMWARE */
 		}
 	}
 #else
@@ -362,6 +456,11 @@ static void _FaultDump(const NANO_ESF *esf, int fault)
 	case 6:
 		_UsageFault(esf);
 		break;
+#if defined(CONFIG_ARM_SECURE_FIRMWARE)
+	case 7:
+		_SecureFault(esf);
+		break;
+#endif /* CONFIG_ARM_SECURE_FIRMWARE */
 	case 12:
 		_DebugMonitor(esf);
 		break;
